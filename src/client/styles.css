@@ -1,47 +1,275 @@
+/*
+ * web-terminal token system. Transcribed from DESIGN.md sections 2-7.
+ * Raw values are forbidden outside this token block (DESIGN.md preamble).
+ */
+
 :root {
-  --bg: #0b0d12;
-  --fg: #d8dee9;
+  color-scheme: dark;
+
+  /* DESIGN.md 2.1 - palette */
+  --surface-canvas: #07080a;
+  --surface-primary: #0d0f11;
+  --surface-secondary: #131518;
+  --surface-elevated: #17191c;
+  --surface-raised: #1b1e21;
+  --surface-sunken: #050607;
+  --surface-scrim: rgba(5, 6, 7, 0.64);
+  --text-primary: #f2f3f5;
+  --text-secondary: #a8adb4;
+  --text-tertiary: #80858d;
+  --text-inverse: #0d0f11;
+  --border-default: rgba(255, 255, 255, 0.1);
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --border-strong: rgba(255, 255, 255, 0.18);
+  --accent-primary: #5ab2ff;
+  --accent-hover: #82c6ff;
+  --accent-muted: rgba(90, 178, 255, 0.14);
+  --status-success: #4ade80;
+  --status-warning: #fbbf24;
+  --status-error: #ff6b6b;
+  --status-info: #5ab2ff;
+  --status-success-wash: rgba(74, 222, 128, 0.12);
+  --status-warning-wash: rgba(251, 191, 36, 0.12);
+  --status-error-wash: rgba(255, 107, 107, 0.12);
+  --status-neutral: #80858d;
+
+  /* DESIGN.md 2.2 - terminal surface tokens */
+  --term-bg: #050607;
+  --term-fg: #d6dae0;
+  --term-cursor: #5ab2ff;
+  --term-scrollbar: rgba(255, 255, 255, 0.14);
+
+  /* DESIGN.md 3.1 - font stacks, zero webfonts */
+  --font-sans:
+    ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", "Pretendard",
+    "Apple SD Gothic Neo", "Malgun Gothic", Roboto, sans-serif;
+  --font-mono:
+    ui-monospace, "SF Mono", SFMono-Regular, Menlo, Monaco, "Cascadia Mono", "D2Coding",
+    "Roboto Mono", monospace;
+
+  /* DESIGN.md 3.2 - type scale */
+  --text-title: 1.25rem;
+  --text-heading: 1rem;
+  --text-body: 0.875rem;
+  --text-caption: 0.8125rem;
+  --text-micro: 0.75rem;
+  --text-mono-body: 0.875rem;
+  --text-mono-micro: 0.75rem;
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+
+  /* DESIGN.md 4.1 - spacing, 4px base */
+  --space-0: 0;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  /* DESIGN.md 4.2 - size tokens */
+  --size-topbar: 44px;
+  --size-sidebar: 320px;
+  --size-drawer-max: 88vw;
+  --size-keybar: 48px;
+  --size-tap: 44px;
+  --size-tap-lg: 48px;
+  --size-row: 40px;
+  --size-row-touch: 44px;
+  --size-control: 36px;
+  --size-control-touch: 44px;
+  --size-dot: 8px;
+  --size-dialog-max: 720px;
+  --size-login-max: 360px;
+  --size-toast-max: 400px;
+  --size-icon: 16px;
+  --size-focus-ring: 2px;
+  --size-focus-offset: 2px;
+  --size-hairline: 1px;
+
+  /* DESIGN.md 4.3 - radii */
+  --radius-xs: 3px;
+  --radius-sm: 5px;
+  --radius-md: 7px;
+  --radius-lg: 10px;
+  --radius-full: 9999px;
+
+  /* DESIGN.md 4.3 - z-index scale */
+  --z-base: 0;
+  --z-sticky: 10;
+  --z-keybar: 20;
+  --z-scrim: 30;
+  --z-drawer: 40;
+  --z-dialog: 50;
+  --z-toast: 60;
+  --z-focus: 70;
+
+  /* DESIGN.md 4.3 - safe area */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+
+  /* DESIGN.md 6.1 - motion */
+  --dur-instant: 80ms;
+  --dur-micro: 120ms;
+  --dur-standard: 220ms;
+  --dur-exit: 160ms;
+  --dur-pulse: 1600ms;
+  --ease-out: cubic-bezier(0.2, 0, 0, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-emphasis: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.6, 1);
+
+  /* DESIGN.md 7 - the only two shadows in the product */
+  --shadow-key: inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  --shadow-overlay: 0 16px 48px rgba(0, 0, 0, 0.56);
 }
-* {
+
+/* DESIGN.md 6.4 - reduced motion collapses durations, never to zero */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-micro: var(--dur-instant);
+    --dur-standard: var(--dur-instant);
+    --dur-exit: var(--dur-instant);
+  }
+}
+
+*,
+*::before,
+*::after {
   box-sizing: border-box;
 }
+
 html,
 body {
   margin: 0;
-  height: 100%;
-  background: var(--bg);
-  color: var(--fg);
-  font-family: system-ui, sans-serif;
+  padding: 0;
+  block-size: 100%;
 }
+
+body {
+  background: var(--surface-canvas);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: var(--text-body);
+  font-weight: var(--weight-regular);
+  line-height: 1.5;
+  /* DESIGN.md 4.4 - the document never scrolls; rubber-band must not detach chrome */
+  overflow: hidden;
+  overscroll-behavior: none;
+  -webkit-text-size-adjust: 100%;
+}
+
 #app {
-  height: 100%;
+  block-size: 100dvh;
+  overflow: hidden;
 }
+
+/* ---- Layout primitives (StyleGallery). DESIGN.md 6.3: these carry layout only.
+   No transition, animation, transform, will-change, color, border, shadow, or typography. ---- */
+
 .shell {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-}
-.topbar {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  padding: 8px 12px;
-}
-.terminal {
-  flex: 1;
-  min-height: 0;
-}
-.login {
   display: grid;
-  place-items: center;
-  height: 100%;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  /* Pin the column axis: without minmax(0, 1fr) the rows size to max-content
+     and the key toolbar reel blows the shell past the viewport (DESIGN.md 4.4). */
+  grid-template-columns: minmax(0, 1fr);
+  inline-size: 100%;
+  max-inline-size: 100%;
+  block-size: 100dvh;
+  max-block-size: 100dvh;
+  overflow: hidden;
 }
-.login-card {
+
+.shell > * {
+  min-inline-size: 0;
+}
+
+.shell__body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  /* Single pinned row so the terminal fills the body instead of sizing to
+     its canvas's intrinsic height (DESIGN.md 4.5 cursor-line guarantee). */
+  grid-template-rows: minmax(0, 1fr);
+  min-block-size: 0;
+  min-inline-size: 0;
+  overflow: hidden;
+}
+
+.shell__body > * {
+  min-inline-size: 0;
+  min-block-size: 0;
+}
+
+.stack {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  width: min(320px, 90vw);
+  min-block-size: 0;
+  min-inline-size: 0;
 }
-.error {
-  color: #ef6b73;
+
+.cluster {
+  display: flex;
+  align-items: center;
+  min-inline-size: 0;
+}
+
+.overlay {
+  display: grid;
+  position: fixed;
+  inset: 0;
+}
+
+.overlay > * {
+  grid-area: 1 / 1;
+}
+
+.reel {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: min-content;
+  align-items: center;
+  /* Owns inline scroll; must never contribute max-content width to its parent. */
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-inline: contain;
+  scroll-snap-type: inline proximity;
+}
+
+.scroll-body {
+  min-block-size: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* Shared visual utilities */
+.visually-hidden {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+:where(button, a, input, textarea, [tabindex]):focus-visible {
+  outline: var(--size-focus-ring) solid var(--accent-primary);
+  outline-offset: var(--size-focus-offset);
+  z-index: var(--z-focus);
+}
+
+/* Inset rings where a clipping container would crop the outline (DESIGN.md 8.1) */
+.reel :where(button):focus-visible,
+.tabstrip :where(button):focus-visible,
+.scroll-body :where(button, a):focus-visible {
+  outline-offset: calc(-1 * var(--size-focus-ring));
 }

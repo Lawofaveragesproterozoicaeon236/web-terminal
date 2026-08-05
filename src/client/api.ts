@@ -1,16 +1,27 @@
+/** Extra fields some error bodies carry (e.g. 429 rate-limit retry window). */
+export type ApiErrorBody = {
+  readonly retryAfterSeconds?: number
+}
+
 export class ApiError extends Error {
   override readonly name = "ApiError"
   constructor(
     readonly status: number,
     readonly code: string,
+    readonly body?: ApiErrorBody,
   ) {
     super(`${status}: ${code}`)
   }
 }
 
 async function parseError(response: Response): Promise<never> {
-  const body = (await response.json().catch(() => ({}))) as { readonly error?: string }
-  throw new ApiError(response.status, body.error ?? "unknown")
+  const body = (await response.json().catch(() => ({}))) as {
+    readonly error?: string
+    readonly retryAfterSeconds?: number
+  }
+  throw new ApiError(response.status, body.error ?? "unknown", {
+    ...(body.retryAfterSeconds === undefined ? {} : { retryAfterSeconds: body.retryAfterSeconds }),
+  })
 }
 
 export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {

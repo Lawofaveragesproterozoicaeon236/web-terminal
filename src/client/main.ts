@@ -1,83 +1,160 @@
-import { ApiError, checkAuthed, login } from "./api.ts"
-import { createTerminalApp } from "./terminal.ts"
+import { checkAuthed } from "./api.ts"
+import { createTerminalApp, type TerminalApp } from "./terminal.ts"
+import { openConfirm } from "./ui/confirm.ts"
+import { el } from "./ui/dom.ts"
+import { openEditor } from "./ui/editor.ts"
+import { createFilesPanel } from "./ui/files-panel.ts"
+import { createHerdrPanel } from "./ui/herdr-panel.ts"
+import { renderLogin } from "./ui/login.ts"
+import { openSessionPicker } from "./ui/sessions.ts"
+import { createSidebar } from "./ui/sidebar.ts"
+import { isMobile, terminalFontSize, terminalTheme } from "./ui/theme.ts"
+import { createToaster } from "./ui/toast.ts"
+import { applyLatches, createToolbar } from "./ui/toolbar.ts"
+import { createTopBar } from "./ui/topbar.ts"
 
 const appRoot = document.getElementById("app")
 if (appRoot === null) throw new Error("missing #app root")
 const app: HTMLElement = appRoot
 
-function renderLogin(onSuccess: () => void): void {
-  app.innerHTML = `
-    <main class="login">
-      <form id="login-form" class="login-card">
-        <h1>web-terminal</h1>
-        <input id="password" type="password" autocomplete="current-password" placeholder="Password" required />
-        <button type="submit">Unlock</button>
-        <p id="login-error" class="error" hidden></p>
-      </form>
-    </main>`
-  const form = document.getElementById("login-form")
-  const input = document.getElementById("password")
-  const errorEl = document.getElementById("login-error")
-  if (
-    !(form instanceof HTMLFormElement) ||
-    !(input instanceof HTMLInputElement) ||
-    errorEl === null
-  )
-    return
-  form.addEventListener("submit", (event) => {
-    event.preventDefault()
-    void login(input.value)
-      .then(onSuccess)
-      .catch((error: unknown) => {
-        errorEl.hidden = false
-        errorEl.textContent =
-          error instanceof ApiError
-            ? error.status === 429
-              ? "Too many attempts — wait a moment."
-              : "Wrong password."
-            : "Connection failed."
-      })
+async function renderApp(): Promise<void> {
+  const toaster = createToaster()
+  const terminalRegion = el("main", { class: "terminal", "aria-label": "Terminal" })
+
+  const topBar = createTopBar({
+    onToggleSidebar: () => {
+      if (sidebar.isDrawerOpen()) sidebar.closeDrawer()
+      else sidebar.openDrawer()
+    },
+    onOpenSessions: () =>
+      openSessionPicker({
+        background: shell,
+        currentSessionId: () => terminalApp?.connection.sessionId,
+        onAttach: (id) => terminalApp?.switchSession(id),
+        onToast: toaster.show,
+      }),
   })
+
+  const filesPanel = createFilesPanel({
+    onToast: toaster.show,
+    onEdit: (path, name) =>
+      void openEditor(path, name, {
+        background: shell,
+        onToast: toaster.show,
+        onClosed: () => terminalApp?.fit(),
+      }),
+    onConfirm: (message, onYes) => openConfirm({ message, background: shell, onConfirm: onYes }),
+  })
+  const herdrPanel = createHerdrPanel()
+
+  const sidebar = createSidebar({
+    files: filesPanel,
+    herdr: herdrPanel,
+    background: terminalRegion,
+    onDrawerChange: (open) => {
+      topBar.setSidebarExpanded(open)
+      // Latches must not survive an overlay opening (DESIGN.md 5.9).
+      if (open) toolbar.clearLatches()
+    },
+  })
+
+  const toolbar = createToolbar({
+    sendKeys: (data) => terminalApp?.sendKeys(data),
+    focusTerminal: () => terminalApp?.terminal.focus(),
+    onError: (message) => toaster.show(message, "error"),
+    onLatchChange: () => undefined,
+  })
+
+  const shellBody = el("div", { class: "shell__body" }, [terminalRegion, sidebar.element])
+  const shell = el("div", { class: "shell" }, [topBar.element, shellBody])
+  if (isMobile()) shell.appendChild(toolbar.element)
+
+  app.replaceChildren(shell, toaster.element)
+
+  let terminalApp: TerminalApp | undefined
+  const created = await createTerminalApp(terminalRegion, terminalTheme, {
+    onState: (state) => {
+      topBar.setState(state)
+      if (state === "reconnecting") toaster.show("Reconnecting…", "warning")
+      if (state === "connected") topBar.setSessionLabel(labelFor(terminalApp))
+    },
+    onLatency: topBar.setLatency,
+    onTitle: (title) => {
+      document.title = title === "" ? "web-terminal" : title
+      topBar.setSessionLabel(title === "" ? labelFor(terminalApp) : title)
+    },
+    onSession: () => topBar.setSessionLabel(labelFor(terminalApp)),
+  })
+  terminalApp = created
+
+  // QA hook consumed by script/qa/e2e-scenarios.mjs. Object.assign avoids an `as` cast.
+  Object.assign(globalThis, { __wt: created })
+
+  // DESIGN.md 3.2: the terminal cell drops to 13px below --bp-md. Set once here
+  // (the type scale is owned by the UI layer, not terminal.ts). ghostty recomputes
+  // its own cell metrics on this assignment; the ResizeObserver below re-fits.
+  const cellSize = terminalFontSize()
+  if (created.terminal.options.fontSize !== cellSize) {
+    created.terminal.options.fontSize = cellSize
+  }
+
+  // Ctrl/Alt latch: intercept the next real key press before ghostty encodes it.
+  // Returning true suppresses the engine's own send, so exactly one byte goes out.
+  created.terminal.attachCustomKeyEventHandler((event) => {
+    if (event.type !== "keydown") return false
+    const mods = toolbar.modifiers()
+    if (!mods.ctrl && !mods.alt) return false
+    if (event.key.length !== 1) return false
+    created.sendKeys(applyLatches(event.key, mods))
+    toolbar.clearLatches()
+    return true
+  })
+
+  applyResponsiveLayout(shell, shellBody, toolbar.element, sidebar, created, terminalRegion)
 }
 
-async function renderApp(): Promise<void> {
-  app.innerHTML = `
-    <div class="shell">
-      <header class="topbar">
-        <span class="brand">web-terminal</span>
-        <span id="status" class="status" data-state="connecting">connecting</span>
-        <span id="latency" class="latency"></span>
-      </header>
-      <div id="terminal" class="terminal"></div>
-    </div>`
-  const container = document.getElementById("terminal")
-  const status = document.getElementById("status")
-  const latency = document.getElementById("latency")
-  if (container === null || status === null || latency === null) return
-  await createTerminalApp(
-    container,
-    { background: "#0b0d12", foreground: "#d8dee9" },
-    {
-      onState: (state) => {
-        status.dataset["state"] = state
-        status.textContent = state
-      },
-      onLatency: (ms) => {
-        latency.textContent = `${ms}ms`
-      },
-      onTitle: (title) => {
-        document.title = title === "" ? "web-terminal" : title
-      },
-      onSession: () => undefined,
-    },
-  )
+function labelFor(app: TerminalApp | undefined): string {
+  const id = app?.connection.sessionId
+  return id === undefined ? "Session" : id.slice(0, 8)
+}
+
+type SidebarHandle = ReturnType<typeof createSidebar>
+
+function applyResponsiveLayout(
+  shell: HTMLElement,
+  shellBody: HTMLElement,
+  toolbarEl: HTMLElement,
+  sidebar: SidebarHandle,
+  terminalApp: TerminalApp,
+  terminalRegion: HTMLElement,
+): void {
+  const sync = (): void => {
+    const mobile = isMobile()
+    shellBody.dataset["docked"] = mobile ? "false" : "true"
+    if (mobile && toolbarEl.parentElement === null) shell.appendChild(toolbarEl)
+    if (!mobile && toolbarEl.parentElement !== null) toolbarEl.remove()
+    if (!mobile && sidebar.isDrawerOpen()) sidebar.closeDrawer()
+    sidebar.relayout()
+  }
+  sync()
+  window.addEventListener("resize", sync)
+  // Re-fit on every later box change (drawer, dock, keyboard, font metrics).
+  new ResizeObserver(() => terminalApp.fit()).observe(terminalRegion)
+  // The observer has no initial change to report: the region is sized in the
+  // same layout pass it is attached in. Fit once after that pass commits, or the
+  // canvas keeps the pre-layout box it was opened with.
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => terminalApp.fit())
+  })
+  // The toolbar rides the on-screen keyboard's top edge (DESIGN.md 4.5).
+  window.visualViewport?.addEventListener("resize", () => terminalApp.fit())
 }
 
 async function boot(): Promise<void> {
   if (await checkAuthed()) {
     await renderApp()
   } else {
-    renderLogin(() => void renderApp())
+    renderLogin(app, () => void renderApp())
   }
 }
 
