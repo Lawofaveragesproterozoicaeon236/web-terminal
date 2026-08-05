@@ -37,9 +37,25 @@ export class TerminalConnection {
     this.#events = events
   }
 
-  connect(cols: number, rows: number): void {
+  connect(cols: number, rows: number, sessionId?: string): void {
     this.#cols = cols
     this.#rows = rows
+    if (sessionId !== undefined) this.#sessionId = sessionId
+    this.#open()
+  }
+
+  /** Detach from the current session and attach to another (undefined = fresh session). */
+  switchSession(sessionId: string | undefined): void {
+    this.#sessionId = sessionId
+    this.#offset = 0
+    this.#attempts = 0
+    const ws = this.#ws
+    this.#ws = undefined
+    if (ws !== undefined) {
+      ws.onclose = null
+      ws.close()
+    }
+    this.#stopPing()
     this.#open()
   }
 

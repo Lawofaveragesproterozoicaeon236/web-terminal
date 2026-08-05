@@ -5,6 +5,7 @@ export type TerminalAppEvents = {
   readonly onState: (state: ConnectionState) => void
   readonly onLatency: (ms: number) => void
   readonly onTitle: (title: string) => void
+  readonly onSession: (sessionId: string) => void
 }
 
 export type TerminalApp = {
@@ -12,8 +13,11 @@ export type TerminalApp = {
   readonly connection: TerminalConnection
   readonly fit: () => void
   readonly sendKeys: (data: string) => void
+  readonly switchSession: (sessionId: string | undefined) => void
   readonly dispose: () => void
 }
+
+const SESSION_STORAGE_KEY = "wt:session-id"
 
 export type TerminalTheme = Readonly<Record<string, string>>
 
@@ -42,20 +46,28 @@ export async function createTerminalApp(
     onState: events.onState,
     onLatency: events.onLatency,
     onExit: (code) => terminal.write(`\r\n\u001b[90m[session exited: ${code}]\u001b[0m\r\n`),
-    onSession: () => undefined,
+    onSession: (sessionId) => {
+      localStorage.setItem(SESSION_STORAGE_KEY, sessionId)
+      events.onSession(sessionId)
+    },
   })
 
   terminal.onData((data) => connection.sendInput(data))
   terminal.onResize(({ cols, rows }) => connection.sendResize(cols, rows))
   terminal.onTitleChange(events.onTitle)
   window.addEventListener("resize", () => fitAddon.fit())
-  connection.connect(terminal.cols, terminal.rows)
+  const storedSession = localStorage.getItem(SESSION_STORAGE_KEY) ?? undefined
+  connection.connect(terminal.cols, terminal.rows, storedSession)
 
   return {
     terminal,
     connection,
     fit: () => fitAddon.fit(),
     sendKeys: (data) => connection.sendInput(data),
+    switchSession: (sessionId) => {
+      terminal.write("\u001b[2J\u001b[H")
+      connection.switchSession(sessionId)
+    },
     dispose: () => {
       connection.close()
       terminal.dispose()

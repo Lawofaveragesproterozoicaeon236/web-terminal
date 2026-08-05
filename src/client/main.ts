@@ -68,6 +68,7 @@ async function renderApp(): Promise<void> {
       onTitle: (title) => {
         document.title = title === "" ? "web-terminal" : title
       },
+      onSession: () => undefined,
     },
   )
 }
