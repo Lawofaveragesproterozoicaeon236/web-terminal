@@ -80,7 +80,14 @@ export class FilesApi {
 
   async write(relPath: string, content: Uint8Array): Promise<void> {
     const file = this.resolve(relPath)
-    await this.#assertRealPathInside(dirname(file), relPath, { allowMissing: true })
+    // Reject writing through an existing final-component symlink (writeFile follows it).
+    const finalStat = await lstat(file).catch(() => undefined)
+    if (finalStat?.isSymbolicLink()) {
+      throw new FilesError("outside-root", `write target is a symlink: ${relPath}`)
+    }
+    // Validate the nearest existing ancestor chain, not just the immediate parent,
+    // so `link-dir/new/file` cannot escape through a symlinked ancestor.
+    await this.#assertNearestExistingAncestorInside(file, relPath)
     await mkdir(dirname(file), { recursive: true })
     await writeFile(file, content)
   }
@@ -116,6 +123,27 @@ export class FilesApi {
     const realRoot = await realpath(this.#root)
     if (real !== realRoot && !real.startsWith(realRoot + sep)) {
       throw new FilesError("outside-root", `symlink escapes root: ${relPath}`)
+    }
+  }
+
+  /** Walk up to the nearest existing ancestor and verify it stays inside the root. */
+  async #assertNearestExistingAncestorInside(path: string, relPath: string): Promise<void> {
+    let current = path
+    for (;;) {
+      try {
+        await lstat(current)
+        await this.#assertRealPathInside(current, relPath, { allowMissing: false })
+        return
+      } catch (error) {
+        if (isSystemError(error) && error.code === "ENOENT") {
+          const parent = dirname(current)
+          if (parent === current)
+            throw new FilesError("outside-root", `no in-root ancestor: ${relPath}`)
+          current = parent
+          continue
+        }
+        throw error
+      }
     }
   }
 

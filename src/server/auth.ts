@@ -58,9 +58,12 @@ export class Auth {
       )
       return { kind: "rate-limited", retryAfterSeconds }
     }
+    // Reserve a failure slot synchronously BEFORE any await. Concurrent logins each
+    // see the updated map immediately, so a parallel burst cannot slip past the
+    // threshold with a stale snapshot. The reservation is rolled back on success.
+    this.#failuresByIp.set(ip, { failures: [...recentFailures, now] })
     const valid = await Bun.password.verify(password, this.#passwordHash)
     if (!valid) {
-      this.#failuresByIp.set(ip, { failures: [...recentFailures, now] })
       return { kind: "invalid" }
     }
     this.#failuresByIp.delete(ip)

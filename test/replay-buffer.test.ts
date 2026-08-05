@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { ReplayBuffer } from "../src/server/replay-buffer.ts"
+import { ReplayBuffer, snapTailToSafeBoundary } from "../src/server/replay-buffer.ts"
 
 const bytes = (s: string): Uint8Array => new TextEncoder().encode(s)
 const text = (b: Uint8Array): string => new TextDecoder().decode(b)
@@ -68,5 +68,33 @@ describe("ReplayBuffer", () => {
     const t = buf.tail(100)
     expect(t.offset).toBe(0)
     expect(text(t.data)).toBe("xy")
+  })
+})
+
+describe("snapTailToSafeBoundary", () => {
+  test("starts after the last newline so the tail never begins mid-line", () => {
+    const data = bytes("line one\nline two\nline three")
+    const snapped = snapTailToSafeBoundary(data, 20)
+    expect(text(snapped.data).startsWith("line")).toBe(true)
+    expect(snapped.skipped).toBeGreaterThanOrEqual(0)
+  })
+
+  test("never starts inside an escape sequence", () => {
+    const data = new Uint8Array([...bytes("abc\n"), 0x1b, 0x5b, 0x33, 0x31, 0x6d, ...bytes("red")])
+    const snapped = snapTailToSafeBoundary(data, data.length - 2)
+    expect(snapped.data[0]).not.toBe(0x33)
+    expect(snapped.data[0]).not.toBe(0x5b)
+  })
+
+  test("never starts mid multi-byte UTF-8 codepoint", () => {
+    const data = bytes("\uac00\ub098\ub2e4\ub77c\ub9c8\ubc14\uc0ac")
+    const snapped = snapTailToSafeBoundary(data, 10)
+    expect(text(snapped.data).startsWith("\ufffd")).toBe(false)
+  })
+
+  test("returns everything when the budget covers the data", () => {
+    const data = bytes("short")
+    const snapped = snapTailToSafeBoundary(data, 100)
+    expect(text(snapped.data)).toBe("short")
   })
 })

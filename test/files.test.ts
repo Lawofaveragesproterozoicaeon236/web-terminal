@@ -40,6 +40,26 @@ describe("path jail", () => {
     await symlink(join(outside, "secret.txt"), join(root, "sneaky"))
     await expect(api.read("sneaky")).rejects.toThrow(FilesError)
   })
+
+  test("rejects write through an existing final-component symlink", async () => {
+    // momus F1: writeFile follows an existing symlink, overwriting outside the root
+    await writeFile(join(outside, "victim.txt"), "precious")
+    await symlink(join(outside, "victim.txt"), join(root, "link-victim"))
+    await expect(api.write("link-victim", new TextEncoder().encode("PWNED"))).rejects.toThrow(
+      FilesError,
+    )
+    const intact = await Bun.file(join(outside, "victim.txt")).text()
+    expect(intact).toBe("precious")
+  })
+
+  test("rejects write under a nested path whose ancestor is a symlink escape", async () => {
+    // momus F1: allowMissing returned early without validating existing ancestors
+    await symlink(outside, join(root, "link-dir"))
+    await expect(
+      api.write("link-dir/new/file.txt", new TextEncoder().encode("PWNED")),
+    ).rejects.toThrow(FilesError)
+    await expect(Bun.file(join(outside, "new", "file.txt")).exists()).resolves.toBe(false)
+  })
 })
 
 describe("operations", () => {

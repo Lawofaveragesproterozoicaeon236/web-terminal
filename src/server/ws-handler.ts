@@ -8,6 +8,7 @@ import {
   parseClientControl,
   type ServerControl,
 } from "../shared/protocol.ts"
+import { snapTailToSafeBoundary } from "./replay-buffer.ts"
 import type { SessionStore, TerminalSession } from "./session-store.ts"
 
 const RECONNECT_TAIL_BYTES = 256 * 1024
@@ -49,10 +50,14 @@ function handleHello(
     if (resume.length > 0) ws.send(encodeOutput(hello.lastOffset, resume))
     return
   }
-  const tail = session.buffer.tail(RECONNECT_TAIL_BYTES)
-  sendControl(ws, { t: "welcome", sessionId: session.id, offset: tail.offset })
-  sendControl(ws, { t: "reset", offset: tail.offset })
-  if (tail.data.length > 0) ws.send(encodeOutput(tail.offset, tail.data))
+  const rawTail = session.buffer.tail(RECONNECT_TAIL_BYTES)
+  // Snap to a boundary that is not inside an escape sequence or UTF-8 codepoint,
+  // so the repaint after clear/home renders coherently.
+  const snapped = snapTailToSafeBoundary(rawTail.data, rawTail.data.length)
+  const tailOffset = rawTail.offset + snapped.skipped
+  sendControl(ws, { t: "welcome", sessionId: session.id, offset: tailOffset })
+  sendControl(ws, { t: "reset", offset: tailOffset })
+  if (snapped.data.length > 0) ws.send(encodeOutput(tailOffset, snapped.data))
 }
 
 function handleText(ws: ServerWebSocket<WsData>, store: SessionStore, raw: string): void {

@@ -15,6 +15,7 @@ const INITIAL_BACKOFF_MS = 300
 const BACKOFF_JITTER_MIN = 0.7
 const BACKOFF_JITTER_RANGE = 0.6
 const PING_INTERVAL_MS = 15_000
+const PONG_TIMEOUT_MS = 45_000
 
 export type ConnectionState = "connecting" | "connected" | "reconnecting" | "closed"
 
@@ -35,6 +36,7 @@ export class TerminalConnection {
   #closed = false
   #pingTimer: ReturnType<typeof setInterval> | undefined
   #pingSentAt = 0
+  #lastPongAt = 0
   #cols: number = DEFAULT_TERMINAL_DIMENSIONS.cols
   #rows: number = DEFAULT_TERMINAL_DIMENSIONS.rows
   readonly #events: ConnectionEvents
@@ -140,7 +142,8 @@ export class TerminalConnection {
         this.#events.onReset()
         return
       case "pong":
-        this.#events.onLatency(Date.now() - this.#pingSentAt)
+        this.#lastPongAt = Date.now()
+        this.#events.onLatency(this.#lastPongAt - this.#pingSentAt)
         return
       case "exit":
         this.#events.onExit(message.code)
@@ -174,11 +177,18 @@ export class TerminalConnection {
 
   #startPing(): void {
     this.#stopPing()
+    this.#lastPongAt = Date.now()
     this.#pingTimer = setInterval(() => {
-      if (this.#ws?.readyState === WebSocket.OPEN) {
-        this.#pingSentAt = Date.now()
-        this.#ws.send(JSON.stringify({ t: "ping" }))
+      const ws = this.#ws
+      if (ws?.readyState !== WebSocket.OPEN) return
+      // Liveness: a blackholed socket never fires onclose, so force it closed when
+      // pongs stop arriving. The close handler then drives the reconnect backoff.
+      if (Date.now() - this.#lastPongAt > PONG_TIMEOUT_MS) {
+        ws.close()
+        return
       }
+      this.#pingSentAt = Date.now()
+      ws.send(JSON.stringify({ t: "ping" }))
     }, PING_INTERVAL_MS)
   }
 

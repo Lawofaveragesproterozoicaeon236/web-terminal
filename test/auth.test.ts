@@ -65,6 +65,22 @@ describe("Auth", () => {
     expect(after.kind).toBe("ok")
   })
 
+  test("concurrent failures from one IP cannot exceed the failure limit", async () => {
+    // momus F2: each request snapshots recentFailures before awaiting verify, so a
+    // parallel burst all passes the threshold and records ~1 failure total.
+    const now = { value: 1_000_000 }
+    const auth = await makeAuth(now)
+    const burst = await Promise.all(Array.from({ length: 20 }, () => auth.login("nope", "9.9.9.9")))
+    // after the burst the IP must be locked out: further attempts are rate-limited
+    const after = await auth.login("nope", "9.9.9.9")
+    expect(after.kind).toBe("rate-limited")
+    const limitedCount = burst.filter((r) => r.kind === "rate-limited").length
+    // at most maxFailures attempts should have run the verify path
+    const invalidCount = burst.filter((r) => r.kind === "invalid").length
+    expect(invalidCount).toBeLessThanOrEqual(5)
+    expect(limitedCount).toBeGreaterThanOrEqual(15)
+  })
+
   test("session expires after ttl", async () => {
     const now = { value: 1_000_000 }
     const auth = await makeAuth(now)
