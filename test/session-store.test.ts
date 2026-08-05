@@ -100,6 +100,23 @@ describe("SessionStore", () => {
     expect(session.info().alive).toBe(false)
   })
 
+  test("default command prefers WT_SHELL then zsh over $SHELL=fish", () => {
+    // fish blocks on terminal capability queries ghostty-web cannot answer (DA/DCS);
+    // the server must default to a shell that produces output immediately.
+    const savedShell = process.env["SHELL"]
+    process.env["SHELL"] = "/opt/homebrew/bin/fish"
+    try {
+      const { defaultCommand } = require("../src/server/session-store.ts") as {
+        defaultCommand: () => readonly string[]
+      }
+      const cmd = defaultCommand()
+      expect(cmd[0]).not.toBe("/opt/homebrew/bin/fish")
+    } finally {
+      if (savedShell === undefined) delete process.env["SHELL"]
+      else process.env["SHELL"] = savedShell
+    }
+  })
+
   test("list and get reflect created sessions", () => {
     store = new SessionStore()
     const session = store.create({ command: ["/bin/sh"], cols: 80, rows: 24, title: "work" })

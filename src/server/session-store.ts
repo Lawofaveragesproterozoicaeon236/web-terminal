@@ -1,9 +1,22 @@
+import { existsSync } from "node:fs"
 import { type PtyHandle, type PtyOptions, spawnPty } from "./pty.ts"
 import { ReplayBuffer } from "./replay-buffer.ts"
 
 const BUFFER_CAPACITY_BYTES = 4 * 1024 * 1024
 const FLUSH_INTERVAL_MS = 8
-const DEFAULT_COMMAND = [process.env["SHELL"] ?? "/bin/zsh", "-l"] as const
+
+/**
+ * Default session command. fish blocks on terminal capability queries (DA/DCS)
+ * that ghostty-web does not answer, producing a blank terminal; zsh does not.
+ * Precedence: WT_SHELL override → zsh when present → $SHELL fallback.
+ */
+export function defaultCommand(): readonly string[] {
+  const override = process.env["WT_SHELL"]
+  if (override !== undefined && override !== "") return [override, "-l"]
+  const zsh = "/bin/zsh"
+  if (existsSync(zsh)) return [zsh, "-l"]
+  return [process.env["SHELL"] ?? zsh, "-l"]
+}
 
 export type SessionInfo = {
   readonly id: string
@@ -41,7 +54,7 @@ export class TerminalSession {
     this.#cols = options.cols ?? 80
     this.#rows = options.rows ?? 24
     const ptyOptions: PtyOptions = {
-      command: options.command ?? DEFAULT_COMMAND,
+      command: options.command ?? defaultCommand(),
       cols: this.#cols,
       rows: this.#rows,
       ...(options.cwd === undefined ? {} : { cwd: options.cwd }),
