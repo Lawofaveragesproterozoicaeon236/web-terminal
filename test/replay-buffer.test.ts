@@ -92,9 +92,34 @@ describe("snapTailToSafeBoundary", () => {
     expect(text(snapped.data).startsWith("\ufffd")).toBe(false)
   })
 
-  test("returns everything when the budget covers the data", () => {
+  test("returns everything when the data is already safe and fits", () => {
     const data = bytes("short")
     const snapped = snapTailToSafeBoundary(data, 100)
     expect(text(snapped.data)).toBe("short")
+  })
+
+  test("snaps even when the budget exceeds the data length", () => {
+    // momus round 2: passing data.length as maxBytes must NOT disable snapping
+    const data = new Uint8Array([0x1b, 0x5b, 0x33, 0x31, 0x6d, ...bytes("tail after escape")])
+    const snapped = snapTailToSafeBoundary(data, 10_000)
+    expect(snapped.skipped).toBe(0)
+    const midEscape = data.subarray(2)
+    const snappedMid = snapTailToSafeBoundary(midEscape, 10_000)
+    expect(snappedMid.data[0]).not.toBe(0x33)
+  })
+
+  test("skips a partial escape sequence that began before the cut point", () => {
+    const full = new Uint8Array([
+      ...bytes("before"),
+      0x1b,
+      0x5b,
+      0x33,
+      0x31,
+      0x6d,
+      ...bytes("after"),
+    ])
+    const cut = full.subarray(8)
+    const snapped = snapTailToSafeBoundary(cut, cut.length)
+    expect(text(snapped.data)).toBe("after")
   })
 })

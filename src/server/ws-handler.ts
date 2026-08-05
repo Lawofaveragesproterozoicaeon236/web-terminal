@@ -12,6 +12,7 @@ import { snapTailToSafeBoundary } from "./replay-buffer.ts"
 import type { SessionStore, TerminalSession } from "./session-store.ts"
 
 const RECONNECT_TAIL_BYTES = 256 * 1024
+const RECONNECT_SNAP_WINDOW_BYTES = 8 * 1024
 
 /** Per-socket attachment state; mutation follows the WebSocket lifecycle. */
 export type WsData = {
@@ -52,8 +53,9 @@ function handleHello(
   }
   const rawTail = session.buffer.tail(RECONNECT_TAIL_BYTES)
   // Snap to a boundary that is not inside an escape sequence or UTF-8 codepoint,
-  // so the repaint after clear/home renders coherently.
-  const snapped = snapTailToSafeBoundary(rawTail.data, rawTail.data.length)
+  // so the repaint after clear/home renders coherently. The boundary search window
+  // is bounded so the snap only trims the head of the tail, never the whole buffer.
+  const snapped = snapTailToSafeBoundary(rawTail.data, RECONNECT_SNAP_WINDOW_BYTES)
   const tailOffset = rawTail.offset + snapped.skipped
   sendControl(ws, { t: "welcome", sessionId: session.id, offset: tailOffset })
   sendControl(ws, { t: "reset", offset: tailOffset })

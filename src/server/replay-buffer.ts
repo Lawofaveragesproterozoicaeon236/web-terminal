@@ -3,39 +3,76 @@ const NEWLINE = 0x0a
 const UTF8_CONTINUATION_MASK = 0xc0
 const UTF8_CONTINUATION_BYTE = 0x80
 
+const CSI_FINAL_MIN = 0x40
+const CSI_FINAL_MAX = 0x7e
+const MAX_ESCAPE_SCAN_BYTES = 4096
+
+/** True when the byte terminates a CSI/escape sequence. */
+function isEscapeTerminator(byte: number): boolean {
+  return byte >= CSI_FINAL_MIN && byte <= CSI_FINAL_MAX
+}
+
+const CSI_PARAM_MIN = 0x30
+const CSI_PARAM_MAX = 0x3f
+const CSI_INTERMEDIATE_MIN = 0x20
+const CSI_INTERMEDIATE_MAX = 0x2f
+
+/** Bytes that may appear between `ESC [` and the final byte of a CSI sequence. */
+function isCsiBodyByte(byte: number): boolean {
+  return (
+    (byte >= CSI_PARAM_MIN && byte <= CSI_PARAM_MAX) ||
+    (byte >= CSI_INTERMEDIATE_MIN && byte <= CSI_INTERMEDIATE_MAX)
+  )
+}
+
 /**
- * Trim a replay tail to a boundary that is safe to repaint from: never inside an
- * escape sequence and never inside a multi-byte UTF-8 codepoint. Prefers starting
- * just after the most recent newline within the budget, which also resets line state.
+ * Trim a replay tail to a boundary that is safe to repaint from: never inside a
+ * multi-byte UTF-8 codepoint and never inside an escape sequence. Prefers starting
+ * just after the most recent newline inside the budget window, which also resets
+ * line state; otherwise it advances past UTF-8 continuation bytes and past any
+ * escape sequence that started before the cut point.
+ *
+ * `maxBytes` bounds how far back the boundary search may begin. The snap is always
+ * evaluated: a tail whose first byte is unsafe is trimmed even when it fits.
  */
 export function snapTailToSafeBoundary(
   data: Uint8Array,
   maxBytes: number,
 ): { readonly data: Uint8Array; readonly skipped: number } {
-  if (data.length <= maxBytes) return { data, skipped: 0 }
-  const budgetStart = data.length - maxBytes
-  for (let i = budgetStart; i < data.length; i++) {
+  if (data.length === 0) return { data, skipped: 0 }
+  const budgetStart = Math.max(0, data.length - maxBytes)
+
+  for (let i = data.length - 1; i >= budgetStart; i--) {
     if (data[i] === NEWLINE) return { data: data.subarray(i + 1), skipped: i + 1 }
   }
+
   let start = budgetStart
   while (start < data.length) {
     const byte = data[start]
     if (byte === undefined) break
-    const isContinuation = (byte & UTF8_CONTINUATION_MASK) === UTF8_CONTINUATION_BYTE
-    if (isContinuation) {
+    if ((byte & UTF8_CONTINUATION_MASK) === UTF8_CONTINUATION_BYTE) {
       start += 1
       continue
     }
     break
   }
-  for (let i = start; i > budgetStart - 1 && i >= 0; i--) {
-    if (data[i] === ESC) {
-      start = i
-      break
-    }
+
+  // Detect a CSI sequence that began BEFORE this tail. Such a tail starts with a
+  // run of CSI parameter/intermediate bytes followed by a final byte; ordinary text
+  // does not. Skipping past that final byte prevents a mid-sequence repaint.
+  const scanEnd = Math.min(data.length, start + MAX_ESCAPE_SCAN_BYTES)
+  let cursor = start
+  while (cursor < scanEnd) {
+    const byte = data[cursor]
+    if (byte === undefined) break
+    if (!isCsiBodyByte(byte)) break
+    cursor += 1
   }
-  const escapeAt = data.subarray(budgetStart, start).lastIndexOf(ESC)
-  if (escapeAt !== -1) start = budgetStart + escapeAt
+  const finalByte = data[cursor]
+  if (cursor > start && finalByte !== undefined && isEscapeTerminator(finalByte)) {
+    start = cursor + 1
+  }
+
   return { data: data.subarray(start), skipped: start }
 }
 

@@ -1,5 +1,7 @@
 import type { Stats } from "node:fs"
-import { lstat, mkdir, readdir, realpath, rm, stat, writeFile } from "node:fs/promises"
+import { constants } from "node:fs"
+import type { FileHandle } from "node:fs/promises"
+import { lstat, mkdir, open, readdir, realpath, rm, stat } from "node:fs/promises"
 import { dirname, isAbsolute, join, resolve, sep } from "node:path"
 
 export class FilesError extends Error {
@@ -80,16 +82,31 @@ export class FilesApi {
 
   async write(relPath: string, content: Uint8Array): Promise<void> {
     const file = this.resolve(relPath)
-    // Reject writing through an existing final-component symlink (writeFile follows it).
-    const finalStat = await lstat(file).catch(() => undefined)
-    if (finalStat?.isSymbolicLink()) {
-      throw new FilesError("outside-root", `write target is a symlink: ${relPath}`)
-    }
     // Validate the nearest existing ancestor chain, not just the immediate parent,
     // so `link-dir/new/file` cannot escape through a symlinked ancestor.
     await this.#assertNearestExistingAncestorInside(file, relPath)
     await mkdir(dirname(file), { recursive: true })
-    await writeFile(file, content)
+    // TOCTOU-safe write: O_NOFOLLOW makes the kernel refuse the open when the final
+    // component is (or was swapped to) a symlink, so validation is bound to the write
+    // instead of being a separate, racy path check. The post-open realpath check on
+    // the parent closes the swapped-ancestor race.
+    let handle: FileHandle | undefined
+    try {
+      handle = await open(
+        file,
+        constants.O_WRONLY | constants.O_CREAT | constants.O_TRUNC | constants.O_NOFOLLOW,
+        0o600,
+      )
+      await this.#assertRealPathInside(dirname(file), relPath, { allowMissing: false })
+      await handle.writeFile(content)
+    } catch (error) {
+      if (isSystemError(error) && (error.code === "ELOOP" || error.code === "EMLINK")) {
+        throw new FilesError("outside-root", `write target is a symlink: ${relPath}`)
+      }
+      throw error
+    } finally {
+      await handle?.close()
+    }
   }
 
   async remove(relPath: string): Promise<void> {
