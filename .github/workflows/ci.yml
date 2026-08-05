@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+
+jobs:
+  ci:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: canary
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Lint (Biome)
+        run: bunx biome ci .
+      - name: Typecheck (tsgo)
+        run: bunx tsgo --noEmit
+      - name: Test
+        run: bun test
+      - name: Build
+        run: bun run build
+      - name: Workflow summary
+        if: always()
+        run: |
+          {
+            echo "## CI — ${{ matrix.os }}"
+            echo ""
+            echo "| Step | Status |"
+            echo "|---|---|"
+            echo "| lint/typecheck/test/build | ${{ job.status }} |"
+            echo ""
+            echo "Bun: $(bun --version)"
+          } >> "$GITHUB_STEP_SUMMARY"
