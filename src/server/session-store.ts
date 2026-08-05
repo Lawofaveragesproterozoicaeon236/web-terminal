@@ -7,15 +7,21 @@ const FLUSH_INTERVAL_MS = 8
 
 /**
  * Default session command. fish blocks on terminal capability queries (DA/DCS)
- * that ghostty-web does not answer, producing a blank terminal; zsh does not.
- * Precedence: WT_SHELL override → zsh when present → $SHELL fallback.
+ * that ghostty-web does not answer, producing a blank terminal. The default must
+ * therefore never resolve to fish. Precedence: WT_SHELL override → the user's
+ * $SHELL unless it is fish → first available of zsh/bash/sh.
  */
 export function defaultCommand(): readonly string[] {
   const override = process.env["WT_SHELL"]
   if (override !== undefined && override !== "") return [override, "-l"]
-  const zsh = "/bin/zsh"
-  if (existsSync(zsh)) return [zsh, "-l"]
-  return [process.env["SHELL"] ?? zsh, "-l"]
+  const loginShell = process.env["SHELL"]
+  if (loginShell !== undefined && loginShell !== "" && !loginShell.endsWith("fish")) {
+    return [loginShell, "-l"]
+  }
+  for (const candidate of ["/bin/zsh", "/bin/bash", "/bin/sh"]) {
+    if (existsSync(candidate)) return [candidate, "-l"]
+  }
+  return ["/bin/sh", "-l"]
 }
 
 export type SessionInfo = {
