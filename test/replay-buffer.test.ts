@@ -98,28 +98,34 @@ describe("snapTailToSafeBoundary", () => {
     expect(text(snapped.data)).toBe("short")
   })
 
-  test("snaps even when the budget exceeds the data length", () => {
-    // momus round 2: passing data.length as maxBytes must NOT disable snapping
-    const data = new Uint8Array([0x1b, 0x5b, 0x33, 0x31, 0x6d, ...bytes("tail after escape")])
-    const snapped = snapTailToSafeBoundary(data, 10_000)
-    expect(snapped.skipped).toBe(0)
-    const midEscape = data.subarray(2)
-    const snappedMid = snapTailToSafeBoundary(midEscape, 10_000)
-    expect(snappedMid.data[0]).not.toBe(0x33)
-  })
-
-  test("skips a partial escape sequence that began before the cut point", () => {
-    const full = new Uint8Array([
-      ...bytes("before"),
+  test("prefers a newline boundary over an arbitrary cut", () => {
+    // The snap must never depend on the caller's budget to run: a newline inside the
+    // window is always chosen, because a newline cannot occur mid-sequence.
+    const data = new Uint8Array([
       0x1b,
       0x5b,
       0x33,
       0x31,
       0x6d,
-      ...bytes("after"),
+      ...bytes("colored\n"),
+      ...bytes("safe tail"),
     ])
-    const cut = full.subarray(8)
-    const snapped = snapTailToSafeBoundary(cut, cut.length)
-    expect(text(snapped.data)).toBe("after")
+    const snapped = snapTailToSafeBoundary(data, 10_000)
+    expect(text(snapped.data)).toBe("safe tail")
+  })
+
+  test("never discards ordinary digit-prefixed text", () => {
+    // momus round 3: the CSI heuristic treated "123" as parameters and "a" as a
+    // final byte, silently dropping real output.
+    const data = bytes("123abc")
+    const snapped = snapTailToSafeBoundary(data, data.length)
+    expect(text(snapped.data)).toBe("123abc")
+    expect(snapped.skipped).toBe(0)
+  })
+
+  test("never discards text starting with a space then a letter", () => {
+    const data = bytes(" hello world")
+    const snapped = snapTailToSafeBoundary(data, data.length)
+    expect(text(snapped.data)).toBe(" hello world")
   })
 })

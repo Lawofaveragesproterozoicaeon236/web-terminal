@@ -82,30 +82,48 @@ export class FilesApi {
 
   async write(relPath: string, content: Uint8Array): Promise<void> {
     const file = this.resolve(relPath)
-    // Validate the nearest existing ancestor chain, not just the immediate parent,
-    // so `link-dir/new/file` cannot escape through a symlinked ancestor.
     await this.#assertNearestExistingAncestorInside(file, relPath)
     await mkdir(dirname(file), { recursive: true })
-    // TOCTOU-safe write: O_NOFOLLOW makes the kernel refuse the open when the final
-    // component is (or was swapped to) a symlink, so validation is bound to the write
-    // instead of being a separate, racy path check. The post-open realpath check on
-    // the parent closes the swapped-ancestor race.
+
+    // Containment is bound to the opened descriptors, not to pathnames:
+    //  - the parent is opened O_NOFOLLOW|O_DIRECTORY and its identity (dev+ino) is
+    //    compared against the identity of the realpath-verified parent, so an
+    //    ancestor swapped before OR swapped back after the check is still caught;
+    //  - the target is opened O_NOFOLLOW (no final-component symlink) and O_TRUNC is
+    //    withheld until identity is confirmed, so no outside file is damaged.
+    let parentHandle: FileHandle | undefined
     let handle: FileHandle | undefined
     try {
+      const parentPath = dirname(file)
+      parentHandle = await open(
+        parentPath,
+        constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_DIRECTORY,
+      )
+      const openedParent = await parentHandle.stat()
+      const verifiedParent = await stat(await realpath(parentPath))
+      const sameParent =
+        openedParent.dev === verifiedParent.dev && openedParent.ino === verifiedParent.ino
+      const realRoot = await realpath(this.#root)
+      const realParent = await realpath(parentPath)
+      const parentInside = realParent === realRoot || realParent.startsWith(realRoot + sep)
+      if (!sameParent || !parentInside) {
+        throw new FilesError("outside-root", `directory changed during write: ${relPath}`)
+      }
       handle = await open(
         file,
-        constants.O_WRONLY | constants.O_CREAT | constants.O_TRUNC | constants.O_NOFOLLOW,
+        constants.O_WRONLY | constants.O_CREAT | constants.O_NOFOLLOW,
         0o600,
       )
-      await this.#assertRealPathInside(dirname(file), relPath, { allowMissing: false })
+      await handle.truncate(0)
       await handle.writeFile(content)
     } catch (error) {
       if (isSystemError(error) && (error.code === "ELOOP" || error.code === "EMLINK")) {
-        throw new FilesError("outside-root", `write target is a symlink: ${relPath}`)
+        throw new FilesError("outside-root", `write path crosses a symlink: ${relPath}`)
       }
       throw error
     } finally {
       await handle?.close()
+      await parentHandle?.close()
     }
   }
 

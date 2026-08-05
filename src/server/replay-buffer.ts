@@ -2,37 +2,19 @@ const NEWLINE = 0x0a
 const UTF8_CONTINUATION_MASK = 0xc0
 const UTF8_CONTINUATION_BYTE = 0x80
 
-const CSI_FINAL_MIN = 0x40
-const CSI_FINAL_MAX = 0x7e
-const MAX_ESCAPE_SCAN_BYTES = 4096
-
-/** True when the byte terminates a CSI/escape sequence. */
-function isEscapeTerminator(byte: number): boolean {
-  return byte >= CSI_FINAL_MIN && byte <= CSI_FINAL_MAX
-}
-
-const CSI_PARAM_MIN = 0x30
-const CSI_PARAM_MAX = 0x3f
-const CSI_INTERMEDIATE_MIN = 0x20
-const CSI_INTERMEDIATE_MAX = 0x2f
-
-/** Bytes that may appear between `ESC [` and the final byte of a CSI sequence. */
-function isCsiBodyByte(byte: number): boolean {
-  return (
-    (byte >= CSI_PARAM_MIN && byte <= CSI_PARAM_MAX) ||
-    (byte >= CSI_INTERMEDIATE_MIN && byte <= CSI_INTERMEDIATE_MAX)
-  )
-}
-
 /**
- * Trim a replay tail to a boundary that is safe to repaint from: never inside a
- * multi-byte UTF-8 codepoint and never inside an escape sequence. Prefers starting
- * just after the most recent newline inside the budget window, which also resets
- * line state; otherwise it advances past UTF-8 continuation bytes and past any
- * escape sequence that started before the cut point.
+ * Trim a replay tail to a boundary that is safe to repaint from.
  *
- * `maxBytes` bounds how far back the boundary search may begin. The snap is always
- * evaluated: a tail whose first byte is unsafe is trimmed even when it fits.
+ * Only boundaries the byte stream actually proves are used:
+ *   1. the most recent newline inside the budget window (a newline cannot occur
+ *      inside an escape sequence or a multi-byte codepoint, so it is always safe);
+ *   2. otherwise the buffer start, which is a real stream boundary.
+ *
+ * A mid-stream cut is never guessed: without the emitter's parser state a raw byte
+ * run is ambiguous (`123a` is valid text and a valid CSI body), and guessing would
+ * silently discard real output.
+ *
+ * `maxBytes` bounds how far back the newline search may begin.
  */
 export function snapTailToSafeBoundary(
   data: Uint8Array,
@@ -45,7 +27,10 @@ export function snapTailToSafeBoundary(
     if (data[i] === NEWLINE) return { data: data.subarray(i + 1), skipped: i + 1 }
   }
 
-  let start = budgetStart
+  // No newline in the window: replay from the buffer start rather than cutting at
+  // an unverifiable position. Only skip leading UTF-8 continuation bytes, which are
+  // unambiguously mid-codepoint.
+  let start = 0
   while (start < data.length) {
     const byte = data[start]
     if (byte === undefined) break
@@ -54,22 +39,6 @@ export function snapTailToSafeBoundary(
       continue
     }
     break
-  }
-
-  // Detect a CSI sequence that began BEFORE this tail. Such a tail starts with a
-  // run of CSI parameter/intermediate bytes followed by a final byte; ordinary text
-  // does not. Skipping past that final byte prevents a mid-sequence repaint.
-  const scanEnd = Math.min(data.length, start + MAX_ESCAPE_SCAN_BYTES)
-  let cursor = start
-  while (cursor < scanEnd) {
-    const byte = data[cursor]
-    if (byte === undefined) break
-    if (!isCsiBodyByte(byte)) break
-    cursor += 1
-  }
-  const finalByte = data[cursor]
-  if (cursor > start && finalByte !== undefined && isEscapeTerminator(finalByte)) {
-    start = cursor + 1
   }
 
   return { data: data.subarray(start), skipped: start }
