@@ -6,7 +6,11 @@ export type PtyOptions = {
   readonly env?: Readonly<Record<string, string>>
 }
 
-export type PtyHandlers = {
+class PtyAllocationError extends Error {
+  override readonly name = "PtyAllocationError"
+}
+
+type PtyHandlers = {
   readonly onData: (chunk: Uint8Array) => void
   readonly onExit: (code: number) => void
 }
@@ -33,7 +37,9 @@ export function spawnPty(options: PtyOptions, handlers: PtyHandlers): PtyHandle 
   const terminal = proc.terminal
   if (terminal === undefined) {
     proc.kill()
-    throw new Error("Bun.spawn did not allocate a terminal; Bun >= 1.4 canary is required")
+    throw new PtyAllocationError(
+      "Bun.spawn did not allocate a terminal; Bun >= 1.4 canary is required",
+    )
   }
   void proc.exited.then((code) => {
     handlers.onExit(code)

@@ -4,7 +4,7 @@ import { mountOverlay } from "./overlay.ts"
 
 const MAX_EDITABLE_BYTES = 1024 * 1024
 
-export type EditorActions = {
+type EditorActions = {
   readonly background: HTMLElement
   readonly onToast: (message: string, tone: "success" | "error" | "info") => void
   readonly onClosed: () => void
@@ -38,7 +38,8 @@ export async function openEditor(
     const response = await apiRaw(`/api/files/content?path=${encodeURIComponent(path)}`)
     bytes = new Uint8Array(await response.arrayBuffer())
   } catch (error) {
-    actions.onToast(errorMessage(error, `Could not open ${name}`), "error")
+    if (error instanceof Error) actions.onToast(error.message, "error")
+    else actions.onToast(errorMessage(error, `Could not open ${name}`), "error")
     return
   }
 
@@ -61,13 +62,13 @@ export async function openEditor(
   })
   if (text !== undefined) textarea.value = text
 
-  const body = el("div", { class: "dialog__body" }, [
-    editable
-      ? textarea
-      : tooLarge
-        ? notice("File is too large to edit.", "Only files up to 1MB open in the editor.")
-        : notice("Binary file.", "This file is not valid UTF-8 text and cannot be edited here."),
-  ])
+  let bodyContent: HTMLElement = textarea
+  if (!editable) {
+    bodyContent = tooLarge
+      ? notice("File is too large to edit.", "Only files up to 1MB open in the editor.")
+      : notice("Binary file.", "This file is not valid UTF-8 text and cannot be edited here.")
+  }
+  const body = el("div", { class: "dialog__body" }, [bodyContent])
 
   const errorLine = el("p", { class: "dialog__error", role: "alert", hidden: true })
   const saveButton = el("button", { class: "btn btn--primary", type: "button" }, ["Save"])
@@ -128,7 +129,8 @@ export async function openEditor(
       })
       .catch((error: unknown) => {
         errorLine.hidden = false
-        errorLine.textContent = errorMessage(error, "Could not save this file.")
+        errorLine.textContent =
+          error instanceof Error ? error.message : errorMessage(error, "Could not save this file.")
       })
       .finally(() => {
         saveButton.disabled = false

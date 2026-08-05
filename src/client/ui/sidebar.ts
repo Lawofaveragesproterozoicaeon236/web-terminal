@@ -1,21 +1,21 @@
-import { button, el, replace } from "./dom.ts"
+import { button, el, icon, replace } from "./dom.ts"
 import type { FilesPanel } from "./files-panel.ts"
 import type { HerdrPanel } from "./herdr-panel.ts"
 import { mountOverlay, type Overlay } from "./overlay.ts"
 import { isMobile } from "./theme.ts"
 
-export type SidebarTab = "files" | "herdr"
+type SidebarTab = "files" | "herdr"
 
-export type Sidebar = {
+type Sidebar = {
   /** Docked host element, used at >= --bp-md. */
   readonly element: HTMLElement
   readonly openDrawer: () => void
-  readonly closeDrawer: () => void
+  readonly closeDrawer: (afterClose?: () => void) => void
   readonly isDrawerOpen: () => boolean
   readonly relayout: () => void
 }
 
-export type SidebarActions = {
+type SidebarActions = {
   readonly files: FilesPanel
   readonly herdr: HerdrPanel
   /** Terminal region; receives `inert` while the drawer is open. */
@@ -27,6 +27,7 @@ export function createSidebar(actions: SidebarActions): Sidebar {
   const panelHost = el("div", { class: "stack", id: "sidebar-panel", tabindex: "0" })
   let active: SidebarTab = "files"
   let overlay: Overlay | undefined
+  let afterDrawerClose: (() => void) | undefined
 
   const tabs = new Map<SidebarTab, HTMLButtonElement>()
 
@@ -72,16 +73,21 @@ export function createSidebar(actions: SidebarActions): Sidebar {
   strip.addEventListener("keydown", (event) => {
     const order: readonly SidebarTab[] = ["files", "herdr"]
     const index = order.indexOf(active)
-    const next =
-      event.key === "ArrowRight"
-        ? index + 1
-        : event.key === "ArrowLeft"
-          ? index - 1
-          : event.key === "Home"
-            ? 0
-            : event.key === "End"
-              ? order.length - 1
-              : -1
+    let next = -1
+    switch (event.key) {
+      case "ArrowRight":
+        next = index + 1
+        break
+      case "ArrowLeft":
+        next = index - 1
+        break
+      case "Home":
+        next = 0
+        break
+      case "End":
+        next = order.length - 1
+        break
+    }
     if (next === -1) return
     event.preventDefault()
     const target = order[Math.max(0, Math.min(order.length - 1, next))]
@@ -92,7 +98,7 @@ export function createSidebar(actions: SidebarActions): Sidebar {
 
   const closeButton = button(
     { class: "btn btn--ghost btn--icon", "aria-label": "Close panel" },
-    ["\u2715"],
+    [icon("close")],
     () => closeDrawer(),
   )
 
@@ -104,8 +110,13 @@ export function createSidebar(actions: SidebarActions): Sidebar {
 
   const dockedHost = el("aside", { class: "sidebar" }, [header(false), strip, panelHost])
 
-  function closeDrawer(): void {
-    overlay?.close()
+  function closeDrawer(afterClose?: () => void): void {
+    if (overlay === undefined) {
+      afterClose?.()
+      return
+    }
+    afterDrawerClose = afterClose
+    overlay.close()
   }
 
   function openDrawer(): void {
@@ -128,6 +139,9 @@ export function createSidebar(actions: SidebarActions): Sidebar {
         overlay = undefined
         actions.onDrawerChange(false)
         relayout()
+        const continuation = afterDrawerClose
+        afterDrawerClose = undefined
+        continuation?.()
       },
     })
     actions.onDrawerChange(true)

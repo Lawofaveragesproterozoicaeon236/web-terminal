@@ -1,0 +1,216 @@
+/* ---------- 5.7 Drawer + scrim ---------- */
+.overlay {
+  z-index: var(--z-scrim);
+}
+
+.overlay__scrim {
+  background: var(--surface-scrim);
+  opacity: 1;
+  transition: opacity var(--dur-standard) var(--ease-out);
+}
+
+.overlay[data-closing="true"] .overlay__scrim {
+  opacity: 0;
+  transition-duration: var(--dur-exit);
+}
+
+.drawer {
+  justify-self: end;
+  inline-size: min(var(--size-drawer-max), var(--size-sidebar));
+  min-inline-size: 0;
+  block-size: 100dvh;
+  z-index: var(--z-drawer);
+  border-start-start-radius: var(--radius-lg);
+  border-end-start-radius: var(--radius-lg);
+  background: var(--surface-elevated);
+  box-shadow: var(--shadow-overlay);
+  overflow: hidden;
+  padding-block-start: var(--safe-top);
+  padding-block-end: var(--safe-bottom);
+  padding-inline-end: var(--safe-right);
+  will-change: transform;
+  animation: drawer-in var(--dur-standard) var(--ease-emphasis);
+}
+
+.overlay[data-closing="true"] .drawer {
+  animation: drawer-out var(--dur-exit) var(--ease-in) forwards;
+}
+
+@keyframes drawer-in {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes drawer-out {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .drawer,
+  .overlay[data-closing="true"] .drawer {
+    animation-name: fade-in;
+  }
+}
+
+/* ---------- 5.8 Dialog ---------- */
+.dialog {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  place-self: center;
+  inline-size: 100vw;
+  block-size: 100dvh;
+  max-block-size: 100dvh;
+  min-block-size: 0;
+  min-inline-size: 0;
+  z-index: var(--z-dialog);
+  background: var(--surface-elevated);
+  overflow: hidden;
+  padding-block-start: var(--safe-top);
+  padding-block-end: var(--safe-bottom);
+  animation: dialog-in-mobile var(--dur-standard) var(--ease-emphasis);
+}
+
+.dialog__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-inline-size: 0;
+  padding: var(--space-5);
+  border-block-end: var(--size-hairline) solid var(--border-subtle);
+}
+
+.dialog__title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-inline-size: 0;
+  margin: 0;
+  font-size: var(--text-heading);
+  font-weight: var(--weight-semibold);
+}
+
+.dialog__title-text {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dialog__body {
+  min-block-size: 0;
+  min-inline-size: 0;
+  overflow: hidden;
+}
+
+.dialog__body--scroll {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.dialog__body--pad {
+  padding: var(--space-4);
+}
+
+.dialog__footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  padding: var(--space-5);
+  border-block-start: var(--size-hairline) solid var(--border-subtle);
+}
+
+.dialog__error {
+  margin: 0;
+  padding: var(--space-3) var(--space-5);
+  color: var(--status-error);
+  font-size: var(--text-caption);
+}
+
+.badge {
+  flex: none;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-xs);
+  background: var(--status-warning-wash);
+  color: var(--status-warning);
+  font-size: var(--text-micro);
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+}
+
+.editor {
+  inline-size: 100%;
+  block-size: 100%;
+  min-block-size: 0;
+  min-inline-size: 0;
+  padding: var(--space-4);
+  border: 0;
+  background: var(--surface-sunken);
+  color: var(--term-fg);
+  font-family: var(--font-mono);
+  font-size: var(--text-mono-body);
+  line-height: 1.5;
+  resize: none;
+  white-space: pre;
+  overflow: auto;
+}
+
+.editor:focus-visible {
+  outline-offset: calc(-1 * var(--size-focus-ring));
+}
+
+@keyframes dialog-in-mobile {
+  from {
+    opacity: 0;
+    transform: translateY(var(--space-4));
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes dialog-in-desktop {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dialog {
+    animation-name: fade-in;
+  }
+}
+
+@media (min-width: 48rem) {
+  .dialog {
+    inline-size: min(90vw, var(--size-dialog-max));
+    block-size: auto;
+    max-block-size: min(80dvh, var(--size-dialog-max-block));
+    border: var(--size-hairline) solid var(--border-default);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-overlay);
+    animation-name: dialog-in-desktop;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .dialog {
+      animation-name: fade-in;
+    }
+  }
+}

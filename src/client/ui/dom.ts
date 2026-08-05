@@ -1,8 +1,21 @@
-/** Typed DOM builders. Keeps every UI module free of `as` assertions. */
-
 type Attrs = Readonly<Record<string, string | number | boolean | undefined>>
 
-export type Child = Node | string
+type Child = Node | string
+
+const ICON_PATHS = {
+  menu: "M4 6h16M4 12h16M4 18h16",
+  close: "M6 6l12 12M18 6L6 18",
+  download: "M12 3v12m-5-5 5 5 5-5M5 21h14",
+  edit: "M4 20h4L19 9l-4-4L4 16v4M13.5 6.5l4 4",
+  file: "M6 2h8l4 4v16H6zM14 2v6h6",
+  folder: "M3 6h7l2 2h9v12H3z",
+  "arrow-up": "M12 19V5m-6 6 6-6 6 6",
+  "arrow-down": "M12 5v14m6-6-6 6-6-6",
+  "arrow-left": "M19 12H5m6-6-6 6 6 6",
+  "arrow-right": "M5 12h14m-6-6 6 6-6 6",
+} as const
+
+export type IconName = keyof typeof ICON_PATHS
 
 function applyAttrs(node: Element, attrs: Attrs): void {
   for (const [name, value] of Object.entries(attrs)) {
@@ -17,7 +30,6 @@ function appendAll(node: Node, children: readonly Child[]): void {
   }
 }
 
-/** Create an element with attributes and children, typed by tag name. */
 export function el<K extends keyof HTMLElementTagNameMap>(
   tag: K,
   attrs: Attrs = {},
@@ -29,17 +41,27 @@ export function el<K extends keyof HTMLElementTagNameMap>(
   return node
 }
 
-/** Replace every child of `parent` with `children`. */
 export function replace(parent: Element, children: readonly Child[]): void {
   parent.replaceChildren()
   appendAll(parent, children)
 }
 
-export function clear(parent: Element): void {
-  parent.replaceChildren()
+export function icon(name: IconName): SVGSVGElement {
+  const namespace = "http://www.w3.org/2000/svg"
+  const svg = document.createElementNS(namespace, "svg")
+  applyAttrs(svg, {
+    class: "icon",
+    viewBox: "0 0 24 24",
+    fill: "none",
+    "aria-hidden": "true",
+    focusable: "false",
+  })
+  const path = document.createElementNS(namespace, "path")
+  applyAttrs(path, { class: "icon__path", d: ICON_PATHS[name] })
+  svg.appendChild(path)
+  return svg
 }
 
-/** A status dot paired with a text label, per DESIGN.md 5.5. */
 export function dot(state: string, label: string): HTMLSpanElement {
   return el("span", { class: "dot", "data-state": state, role: "img", "aria-label": label })
 }
@@ -56,21 +78,20 @@ export function button(
 
 export function iconButton(
   label: string,
-  glyph: string,
+  iconName: IconName,
   tone: "default" | "danger",
   onClick: () => void,
 ): HTMLButtonElement {
   return button(
     { class: "row-action", "aria-label": label, title: label, "data-tone": tone },
-    [glyph],
+    [icon(iconName)],
     onClick,
   )
 }
 
-/** Format a byte count for a list row's mono meta slot. */
 export function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes}B`
-  const units = ["K", "M", "G", "T"]
+  const units = ["K", "M", "G", "T"] as const
   let value = bytes / 1024
   let unit = 0
   while (value >= 1024 && unit < units.length - 1) {
@@ -80,7 +101,6 @@ export function formatBytes(bytes: number): string {
   return `${value < 10 ? value.toFixed(1) : Math.round(value)}${units[unit] ?? ""}`
 }
 
-/** Extract a human message from an unknown thrown value. Every catch narrows. */
 export function errorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error) return error.message
   if (typeof error === "string" && error !== "") return error

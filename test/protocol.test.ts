@@ -6,6 +6,8 @@ import {
   OPCODE,
   ProtocolError,
   parseClientControl,
+  parseServerControl,
+  sessionIdSchema,
 } from "../src/shared/protocol.ts"
 
 const bytes = (s: string): Uint8Array => new TextEncoder().encode(s)
@@ -66,7 +68,7 @@ describe("control messages", () => {
       JSON.stringify({ t: "hello", sessionId: "s1", lastOffset: 42, cols: 80, rows: 24 }),
     )
     if (msg.t !== "hello") throw new Error("unreachable")
-    expect(msg.sessionId).toBe("s1")
+    expect(msg.sessionId).toBe(sessionIdSchema.parse("s1"))
     expect(msg.lastOffset).toBe(42)
   })
 
@@ -82,5 +84,12 @@ describe("control messages", () => {
     expect(() => parseClientControl(JSON.stringify({ t: "resize", cols: 0, rows: 5 }))).toThrow(
       ProtocolError,
     )
+  })
+
+  test("server control parses only known variants", () => {
+    expect(
+      parseServerControl(JSON.stringify({ t: "welcome", sessionId: "session-1", offset: 4 })),
+    ).toEqual({ t: "welcome", sessionId: sessionIdSchema.parse("session-1"), offset: 4 })
+    expect(() => parseServerControl(JSON.stringify({ t: "future" }))).toThrow(ProtocolError)
   })
 })

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test"
-import { SessionStore, type TerminalSession } from "../src/server/session-store.ts"
+import { defaultCommand, SessionStore, type TerminalSession } from "../src/server/session-store.ts"
 
 const decoder = new TextDecoder()
 
@@ -103,9 +103,6 @@ describe("SessionStore", () => {
   test("default command prefers WT_SHELL and never defaults to a blocking fish", () => {
     // fish blocks on terminal capability queries ghostty-web cannot answer (DA/DCS);
     // the server default must produce output immediately (zsh, or an explicit override).
-    const { defaultCommand } = require("../src/server/session-store.ts") as {
-      defaultCommand: () => readonly string[]
-    }
     const savedShell = process.env["SHELL"]
     const savedOverride = process.env["WT_SHELL"]
     try {

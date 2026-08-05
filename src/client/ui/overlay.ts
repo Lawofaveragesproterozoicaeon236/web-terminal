@@ -5,6 +5,7 @@ export type Overlay = {
   readonly panel: HTMLElement
 }
 
+const EXIT_FALLBACK_MS = 400
 const FOCUSABLE =
   'button:not(:disabled), [href], input:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])'
 
@@ -13,7 +14,7 @@ const focusables = (root: HTMLElement): readonly HTMLElement[] =>
     (node): node is HTMLElement => node instanceof HTMLElement,
   )
 
-export type OverlayOptions = {
+type OverlayOptions = {
   readonly panel: HTMLElement
   /** Background element that receives `inert` while the overlay is open. */
   readonly background: HTMLElement
@@ -47,7 +48,7 @@ export function mountOverlay(options: OverlayOptions): Overlay {
       options.onClose()
     }
     // Exit animation is opacity/transform only; fall through if it never fires.
-    const timer = setTimeout(finish, 400)
+    const timer = setTimeout(finish, EXIT_FALLBACK_MS)
     panel.addEventListener(
       "animationend",
       () => {

@@ -1,3 +1,4 @@
+import { SESSION_ID_PREVIEW_LENGTH } from "../shared/protocol.ts"
 import { checkAuthed } from "./api.ts"
 import { createTerminalApp, type TerminalApp } from "./terminal.ts"
 import { openConfirm } from "./ui/confirm.ts"
@@ -14,7 +15,7 @@ import { applyLatches, createToolbar } from "./ui/toolbar.ts"
 import { createTopBar } from "./ui/topbar.ts"
 
 const appRoot = document.getElementById("app")
-if (appRoot === null) throw new Error("missing #app root")
+if (appRoot === null) throw new TypeError("missing #app root")
 const app: HTMLElement = appRoot
 
 async function renderApp(): Promise<void> {
@@ -37,12 +38,17 @@ async function renderApp(): Promise<void> {
 
   const filesPanel = createFilesPanel({
     onToast: toaster.show,
-    onEdit: (path, name) =>
-      void openEditor(path, name, {
-        background: shell,
-        onToast: toaster.show,
-        onClosed: () => terminalApp?.fit(),
-      }),
+    onEdit: (path, name) => {
+      const launch = (): void => {
+        void openEditor(path, name, {
+          background: shell,
+          onToast: toaster.show,
+          onClosed: () => terminalApp?.fit(),
+        })
+      }
+      if (sidebar.isDrawerOpen()) sidebar.closeDrawer(launch)
+      else launch()
+    },
     onConfirm: (message, onYes) => openConfirm({ message, background: shell, onConfirm: onYes }),
   })
   const herdrPanel = createHerdrPanel()
@@ -115,7 +121,7 @@ async function renderApp(): Promise<void> {
 
 function labelFor(app: TerminalApp | undefined): string {
   const id = app?.connection.sessionId
-  return id === undefined ? "Session" : id.slice(0, 8)
+  return id === undefined ? "Session" : id.slice(0, SESSION_ID_PREVIEW_LENGTH)
 }
 
 type SidebarHandle = ReturnType<typeof createSidebar>

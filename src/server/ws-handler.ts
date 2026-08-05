@@ -1,5 +1,7 @@
 import type { ServerWebSocket } from "bun"
+import { assertNever } from "../shared/assert-never.ts"
 import {
+  type ClientControl,
   decodeBinaryFrame,
   encodeOutput,
   ProtocolError,
@@ -8,6 +10,9 @@ import {
 } from "../shared/protocol.ts"
 import type { SessionStore, TerminalSession } from "./session-store.ts"
 
+const RECONNECT_TAIL_BYTES = 256 * 1024
+
+/** Per-socket attachment state; mutation follows the WebSocket lifecycle. */
 export type WsData = {
   detach: (() => void) | undefined
   session: TerminalSession | undefined
@@ -32,12 +37,7 @@ function attachSession(ws: ServerWebSocket<WsData>, session: TerminalSession): v
 function handleHello(
   ws: ServerWebSocket<WsData>,
   store: SessionStore,
-  hello: {
-    sessionId?: string | undefined
-    lastOffset?: number | undefined
-    cols: number
-    rows: number
-  },
+  hello: Extract<ClientControl, { readonly t: "hello" }>,
 ): void {
   const existing = hello.sessionId === undefined ? undefined : store.get(hello.sessionId)
   const session = existing ?? store.create({ cols: hello.cols, rows: hello.rows })
@@ -49,7 +49,7 @@ function handleHello(
     if (resume.length > 0) ws.send(encodeOutput(hello.lastOffset, resume))
     return
   }
-  const tail = session.buffer.tail(256 * 1024)
+  const tail = session.buffer.tail(RECONNECT_TAIL_BYTES)
   sendControl(ws, { t: "welcome", sessionId: session.id, offset: tail.offset })
   sendControl(ws, { t: "reset", offset: tail.offset })
   if (tail.data.length > 0) ws.send(encodeOutput(tail.offset, tail.data))
@@ -68,6 +68,8 @@ function handleText(ws: ServerWebSocket<WsData>, store: SessionStore, raw: strin
     case "ping":
       sendControl(ws, { t: "pong" })
       return
+    default:
+      assertNever(control)
   }
 }
 

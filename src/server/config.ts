@@ -3,15 +3,17 @@ import { join } from "node:path"
 import { z } from "zod"
 import { hashPassword } from "./auth.ts"
 
-const envSchema = z.object({
-  WT_PORT: z.coerce.number().int().min(0).max(65535).default(7777),
-  WT_HOST: z.string().default("127.0.0.1"),
-  WT_PASSWORD: z.string().min(8).optional(),
-  WT_PASSWORD_HASH: z.string().startsWith("$argon2").optional(),
-  WT_FILES_ROOT: z.string().default(homedir()),
-  WT_HERDR_SOCKET: z.string().default(join(homedir(), ".config", "herdr", "herdr.sock")),
-  WT_ALLOWED_ORIGINS: z.string().default(""),
-})
+const envSchema = z
+  .object({
+    WT_PORT: z.coerce.number().int().min(0).max(65535).default(7777),
+    WT_HOST: z.string().default("127.0.0.1"),
+    WT_PASSWORD: z.string().min(8).optional(),
+    WT_PASSWORD_HASH: z.string().startsWith("$argon2").optional(),
+    WT_FILES_ROOT: z.string().default(homedir()),
+    WT_HERDR_SOCKET: z.string().default(join(homedir(), ".config", "herdr", "herdr.sock")),
+    WT_ALLOWED_ORIGINS: z.string().default(""),
+  })
+  .readonly()
 
 export type ServerConfig = {
   readonly port: number
@@ -22,7 +24,7 @@ export type ServerConfig = {
   readonly allowedOrigins: readonly string[]
 }
 
-export class ConfigError extends Error {
+class ConfigError extends Error {
   override readonly name = "ConfigError"
 }
 

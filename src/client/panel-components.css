@@ -1,0 +1,173 @@
+/* ---------- 5.4 List row ---------- */
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.list__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-inline-size: 0;
+  border-block-end: var(--size-hairline) solid var(--border-subtle);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  min-block-size: var(--size-row-touch);
+  padding-inline: var(--space-3);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: var(--text-body);
+  text-align: start;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.row:hover {
+  background: var(--surface-raised);
+}
+
+.row:active {
+  transform: scale(0.99);
+}
+
+.row[aria-current="true"] {
+  background: var(--accent-muted);
+  font-weight: var(--weight-medium);
+}
+
+.row__lead {
+  flex: none;
+  inline-size: var(--size-icon);
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: var(--text-mono-micro);
+  text-align: center;
+}
+
+.row__label {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.row__meta {
+  flex: none;
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: var(--text-mono-micro);
+  font-variant-numeric: tabular-nums;
+}
+
+.row__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex: none;
+  padding-inline-end: var(--space-2);
+}
+
+.row-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--size-tap);
+  min-block-size: var(--size-tap);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-size: var(--text-micro);
+  cursor: pointer;
+}
+
+.row-action:hover {
+  background: var(--surface-raised);
+  color: var(--text-primary);
+}
+
+.row-action[data-tone="danger"]:hover {
+  color: var(--status-error);
+}
+
+/* Desktop: actions reveal on hover but stay in the DOM and tab order (DESIGN.md 5.4) */
+@media (min-width: 48rem) {
+  .row-action {
+    inline-size: var(--size-control);
+    min-block-size: var(--size-control);
+    opacity: 0;
+    transition: opacity var(--dur-micro) var(--ease-out);
+  }
+
+  .list__item:hover .row-action,
+  .list__item:focus-within .row-action,
+  .row-action:focus-visible {
+    opacity: 1;
+  }
+}
+
+/* ---------- Breadcrumb / path ---------- */
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-inline-size: 0;
+  padding: var(--space-2) var(--space-3);
+  border-block-end: var(--size-hairline) solid var(--border-subtle);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--text-mono-micro);
+}
+
+.breadcrumb__path {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;
+  text-align: start;
+}
+
+/* ---------- 5.12 Empty state ---------- */
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  max-inline-size: 40ch;
+  margin-inline: auto;
+  padding-block: var(--space-8);
+  padding-inline: var(--space-4);
+  text-align: center;
+}
+
+.empty__title {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+}
+
+.empty__hint {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: var(--text-caption);
+}
+
+@media (min-width: 48rem) {
+  .row {
+    min-block-size: var(--size-row);
+  }
+}

@@ -1,21 +1,28 @@
+import { z } from "zod"
 import { apiRaw, apiRequest } from "../api.ts"
-import { button, el, errorMessage, formatBytes, iconButton, replace } from "./dom.ts"
+import { button, el, errorMessage, formatBytes, icon, iconButton, replace } from "./dom.ts"
 
-export type DirEntry = {
-  readonly name: string
-  readonly kind: "file" | "directory" | "other"
-  readonly size: number
-  readonly mtimeMs: number
-}
+const dirEntrySchema = z
+  .object({
+    name: z.string(),
+    kind: z.enum(["file", "directory", "other"]),
+    size: z.number(),
+    mtimeMs: z.number(),
+  })
+  .readonly()
 
-type ListResponse = { readonly path: string; readonly entries: readonly DirEntry[] }
+export type DirEntry = z.infer<typeof dirEntrySchema>
+
+const listResponseSchema = z
+  .object({ path: z.string(), entries: z.array(dirEntrySchema).readonly() })
+  .readonly()
 
 export type FilesPanel = {
   readonly element: HTMLElement
   readonly refresh: () => void
 }
 
-export type FilesPanelActions = {
+type FilesPanelActions = {
   readonly onToast: (message: string, tone: "success" | "error" | "info") => void
   readonly onEdit: (path: string, name: string) => void
   readonly onConfirm: (message: string, onYes: () => void) => void
@@ -36,9 +43,9 @@ export function createFilesPanel(actions: FilesPanelActions): FilesPanel {
   const element = el("div", { class: "stack" }, [breadcrumb, header, body])
 
   let cwd = ""
+  let loadVersion = 0
 
   const showEmpty = (): void => {
-    replace(list, [])
     replace(body, [
       el("div", { class: "empty" }, [
         el("p", { class: "empty__title" }, ["No files here."]),
@@ -60,7 +67,9 @@ export function createFilesPanel(actions: FilesPanelActions): FilesPanel {
     const full = joinPath(cwd, entry.name)
     const isDir = entry.kind === "directory"
     const label = el("span", { class: "row__label", title: entry.name }, [entry.name])
-    const lead = el("span", { class: "row__lead", "aria-hidden": "true" }, [isDir ? "/" : "\u00b7"])
+    const lead = el("span", { class: "row__lead", "aria-hidden": "true" }, [
+      icon(isDir ? "folder" : "file"),
+    ])
     const meta = el("span", { class: "row__meta" }, [isDir ? "" : formatBytes(entry.size)])
 
     const main = isDir
@@ -82,18 +91,15 @@ export function createFilesPanel(actions: FilesPanelActions): FilesPanel {
           "aria-label": `Download ${entry.name}`,
           title: "Download",
         },
-        ["\u2193"],
+        [icon("download")],
       )
       actionNodes.push(download)
       actionNodes.push(
-        // U+FE0E forces text presentation; the bare pencil renders as emoji on Apple.
-        iconButton(`Edit ${entry.name}`, "\u270f\ufe0e", "default", () =>
-          actions.onEdit(full, entry.name),
-        ),
+        iconButton(`Edit ${entry.name}`, "edit", "default", () => actions.onEdit(full, entry.name)),
       )
     }
     actionNodes.push(
-      iconButton(`Delete ${entry.name}`, "\u2715", "danger", () => {
+      iconButton(`Delete ${entry.name}`, "close", "danger", () => {
         actions.onConfirm(`Delete ${entry.name}?`, () => void remove(full, entry.name))
       }),
     )
@@ -110,6 +116,10 @@ export function createFilesPanel(actions: FilesPanelActions): FilesPanel {
       actions.onToast(`Deleted ${name}`, "success")
       load()
     } catch (error) {
+      if (error instanceof Error) {
+        actions.onToast(error.message, "error")
+        return
+      }
       actions.onToast(errorMessage(error, `Could not delete ${name}`), "error")
     }
   }
@@ -124,7 +134,8 @@ export function createFilesPanel(actions: FilesPanelActions): FilesPanel {
         })
         actions.onToast(`Uploaded ${file.name}`, "success")
       } catch (error) {
-        actions.onToast(errorMessage(error, `Could not upload ${file.name}`), "error")
+        if (error instanceof Error) actions.onToast(error.message, "error")
+        else actions.onToast(errorMessage(error, `Could not upload ${file.name}`), "error")
       }
     }
     load()
@@ -139,10 +150,12 @@ export function createFilesPanel(actions: FilesPanelActions): FilesPanel {
   })
 
   function load(): void {
+    const version = ++loadVersion
     breadcrumbPath.textContent = cwd === "" ? "~" : `~/${cwd}`
     breadcrumbPath.title = breadcrumbPath.textContent
-    void apiRequest<ListResponse>(`/api/files?path=${encodeURIComponent(cwd)}`)
+    void apiRequest(`/api/files?path=${encodeURIComponent(cwd)}`, { schema: listResponseSchema })
       .then((data) => {
+        if (version !== loadVersion) return
         const rows: HTMLElement[] = []
         if (cwd !== "") {
           rows.push(
@@ -169,7 +182,11 @@ export function createFilesPanel(actions: FilesPanelActions): FilesPanel {
         replace(list, rows)
         replace(body, [list])
       })
-      .catch((error: unknown) => showError(errorMessage(error, "Unknown error")))
+      .catch((error: unknown) => {
+        if (version !== loadVersion) return
+        if (error instanceof Error) showError(error.message)
+        else showError(errorMessage(error, "Unknown error"))
+      })
   }
 
   element.appendChild(fileInput)

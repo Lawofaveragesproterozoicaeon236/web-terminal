@@ -1,5 +1,13 @@
-/** Extra fields some error bodies carry (e.g. 429 rate-limit retry window). */
-export type ApiErrorBody = {
+import { z } from "zod"
+
+const apiErrorSchema = z
+  .object({
+    error: z.string().optional(),
+    retryAfterSeconds: z.number().int().nonnegative().optional(),
+  })
+  .readonly()
+
+type ApiErrorBody = {
   readonly retryAfterSeconds?: number
 }
 
@@ -14,20 +22,34 @@ export class ApiError extends Error {
   }
 }
 
+type ApiRequestOptions<T> = {
+  readonly schema: z.ZodType<T>
+  readonly init?: RequestInit
+}
+
+async function responseJson(response: Response): Promise<unknown> {
+  return response.json()
+}
+
 async function parseError(response: Response): Promise<never> {
-  const body = (await response.json().catch(() => ({}))) as {
-    readonly error?: string
-    readonly retryAfterSeconds?: number
+  let raw: unknown
+  try {
+    raw = await responseJson(response)
+  } catch (error) {
+    if (error instanceof SyntaxError) raw = {}
+    else throw error
   }
+  const parsed = apiErrorSchema.safeParse(raw)
+  const body = parsed.success ? parsed.data : {}
   throw new ApiError(response.status, body.error ?? "unknown", {
     ...(body.retryAfterSeconds === undefined ? {} : { retryAfterSeconds: body.retryAfterSeconds }),
   })
 }
 
-export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(path, init)
+export async function apiRequest<T>(path: string, options: ApiRequestOptions<T>): Promise<T> {
+  const response = await fetch(path, options.init)
   if (!response.ok) await parseError(response)
-  return (await response.json()) as T
+  return options.schema.parse(await responseJson(response))
 }
 
 export async function apiRaw(path: string, init?: RequestInit): Promise<Response> {
@@ -41,9 +63,14 @@ export const checkAuthed = async (): Promise<boolean> => {
   return response.ok
 }
 
-export const login = (password: string): Promise<{ ok: boolean }> =>
+const loginResponseSchema = z.object({ ok: z.boolean() }).readonly()
+
+export const login = (password: string): Promise<{ readonly ok: boolean }> =>
   apiRequest("/api/login", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ password }),
+    schema: loginResponseSchema,
+    init: {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ password }),
+    },
   })

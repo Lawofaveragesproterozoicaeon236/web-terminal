@@ -1,43 +1,49 @@
-import { encodeInput, OPCODE } from "../shared/protocol.ts"
+import { assertNever } from "../shared/assert-never.ts"
+import {
+  type BinaryFrame,
+  DEFAULT_TERMINAL_DIMENSIONS,
+  decodeBinaryFrame,
+  encodeInput,
+  ProtocolError,
+  parseServerControl,
+  type ServerControl,
+  type SessionId,
+} from "../shared/protocol.ts"
 
 const MAX_BACKOFF_MS = 15_000
+const INITIAL_BACKOFF_MS = 300
+const BACKOFF_JITTER_MIN = 0.7
+const BACKOFF_JITTER_RANGE = 0.6
 const PING_INTERVAL_MS = 15_000
 
 export type ConnectionState = "connecting" | "connected" | "reconnecting" | "closed"
 
-export type ConnectionEvents = {
+type ConnectionEvents = {
   readonly onOutput: (payload: Uint8Array) => void
   readonly onReset: () => void
   readonly onState: (state: ConnectionState) => void
   readonly onExit: (code: number) => void
   readonly onLatency: (ms: number) => void
-  readonly onSession: (sessionId: string) => void
+  readonly onSession: (sessionId: SessionId) => void
 }
-
-type ServerMessage =
-  | { readonly t: "welcome"; readonly sessionId: string; readonly offset: number }
-  | { readonly t: "reset"; readonly offset: number }
-  | { readonly t: "pong" }
-  | { readonly t: "exit"; readonly code: number }
-  | { readonly t: "error"; readonly message: string }
 
 export class TerminalConnection {
   #ws: WebSocket | undefined
-  #sessionId: string | undefined
+  #sessionId: SessionId | undefined
   #offset = 0
   #attempts = 0
   #closed = false
   #pingTimer: ReturnType<typeof setInterval> | undefined
   #pingSentAt = 0
-  #cols = 80
-  #rows = 24
+  #cols: number = DEFAULT_TERMINAL_DIMENSIONS.cols
+  #rows: number = DEFAULT_TERMINAL_DIMENSIONS.rows
   readonly #events: ConnectionEvents
 
   constructor(events: ConnectionEvents) {
     this.#events = events
   }
 
-  connect(cols: number, rows: number, sessionId?: string): void {
+  connect(cols: number, rows: number, sessionId?: SessionId): void {
     this.#cols = cols
     this.#rows = rows
     if (sessionId !== undefined) this.#sessionId = sessionId
@@ -45,7 +51,7 @@ export class TerminalConnection {
   }
 
   /** Detach from the current session and attach to another (undefined = fresh session). */
-  switchSession(sessionId: string | undefined): void {
+  switchSession(sessionId: SessionId | undefined): void {
     this.#sessionId = sessionId
     this.#offset = 0
     this.#attempts = 0
@@ -80,7 +86,7 @@ export class TerminalConnection {
     this.#events.onState("closed")
   }
 
-  get sessionId(): string | undefined {
+  get sessionId(): SessionId | undefined {
     return this.#sessionId
   }
 
@@ -101,7 +107,7 @@ export class TerminalConnection {
     }
     ws.onmessage = (event: MessageEvent<string | ArrayBuffer>) => {
       if (typeof event.data === "string") {
-        this.#handleControl(JSON.parse(event.data) as ServerMessage)
+        this.#handleControl(parseServerControl(event.data))
       } else {
         this.#handleBinary(new Uint8Array(event.data))
       }
@@ -110,7 +116,8 @@ export class TerminalConnection {
       this.#stopPing()
       if (this.#closed) return
       const backoff =
-        Math.min(MAX_BACKOFF_MS, 300 * 2 ** this.#attempts) * (0.7 + Math.random() * 0.6)
+        Math.min(MAX_BACKOFF_MS, INITIAL_BACKOFF_MS * 2 ** this.#attempts) *
+        (BACKOFF_JITTER_MIN + Math.random() * BACKOFF_JITTER_RANGE)
       this.#attempts += 1
       this.#events.onState("reconnecting")
       setTimeout(() => {
@@ -119,7 +126,7 @@ export class TerminalConnection {
     }
   }
 
-  #handleControl(message: ServerMessage): void {
+  #handleControl(message: ServerControl): void {
     switch (message.t) {
       case "welcome":
         this.#sessionId = message.sessionId
@@ -141,15 +148,22 @@ export class TerminalConnection {
       case "error":
         console.error("server protocol error:", message.message)
         return
+      default:
+        assertNever(message)
     }
   }
 
   #handleBinary(data: Uint8Array): void {
-    const opcode = data[0]
-    if (opcode !== OPCODE.output || data.length < 9) return
-    const view = new DataView(data.buffer, data.byteOffset + 1, 8)
-    const frameOffset = Number(view.getBigUint64(0))
-    const payload = data.subarray(9)
+    let frame: BinaryFrame
+    try {
+      frame = decodeBinaryFrame(data)
+    } catch (error) {
+      if (error instanceof ProtocolError) return
+      throw error
+    }
+    if (frame.kind !== "output") return
+    const frameOffset = frame.offset
+    const payload = frame.payload
     if (frameOffset > this.#offset) return
     const skip = this.#offset - frameOffset
     if (skip >= payload.length) return

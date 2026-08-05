@@ -34,9 +34,11 @@ export const terminalTheme: TerminalTheme = {
   brightWhite: "#F2F3F5",
 }
 
-/** DESIGN.md 3.2: terminal cell size drops one step below --bp-md. */
-export const terminalFontSize = (): number => (window.innerWidth < 768 ? 13 : 14)
+const MOBILE_BREAKPOINT = 768
+const TERMINAL_FONT_SIZE_MOBILE = 13
+const TERMINAL_FONT_SIZE_DESKTOP = 14
 
-export const MOBILE_BREAKPOINT = 768
+export const terminalFontSize = (): number =>
+  window.innerWidth < MOBILE_BREAKPOINT ? TERMINAL_FONT_SIZE_MOBILE : TERMINAL_FONT_SIZE_DESKTOP
 
 export const isMobile = (): boolean => window.innerWidth < MOBILE_BREAKPOINT

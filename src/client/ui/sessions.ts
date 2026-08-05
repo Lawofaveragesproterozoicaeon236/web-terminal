@@ -1,31 +1,38 @@
+import { z } from "zod"
+import type { SessionId } from "../../shared/protocol.ts"
+import { SESSION_ID_PREVIEW_LENGTH, sessionIdSchema } from "../../shared/protocol.ts"
 import { apiRaw, apiRequest } from "../api.ts"
 import { button, dot, el, errorMessage, iconButton, replace } from "./dom.ts"
 import { mountOverlay } from "./overlay.ts"
 
-export type SessionInfo = {
-  readonly id: string
-  readonly title: string
-  readonly cols: number
-  readonly rows: number
-  readonly createdAt: number
-  readonly alive: boolean
-  readonly clients: number
-}
+const sessionInfoSchema = z
+  .object({
+    id: sessionIdSchema,
+    title: z.string(),
+    cols: z.number().int(),
+    rows: z.number().int(),
+    createdAt: z.number(),
+    alive: z.boolean(),
+    clients: z.number().int().nonnegative(),
+  })
+  .readonly()
 
-type ListResponse = { readonly sessions: readonly SessionInfo[] }
-type CreateResponse = { readonly session: SessionInfo }
+export type SessionInfo = z.infer<typeof sessionInfoSchema>
 
-export type SessionPickerActions = {
+const listResponseSchema = z.object({ sessions: z.array(sessionInfoSchema).readonly() }).readonly()
+const createResponseSchema = z.object({ session: sessionInfoSchema }).readonly()
+
+type SessionPickerActions = {
   readonly background: HTMLElement
-  readonly currentSessionId: () => string | undefined
-  readonly onAttach: (id: string) => void
+  readonly currentSessionId: () => SessionId | undefined
+  readonly onAttach: (id: SessionId) => void
   readonly onToast: (message: string, tone: "success" | "error" | "info") => void
 }
 
 export function openSessionPicker(actions: SessionPickerActions): void {
   const titleId = "sessions-title"
   const list = el("ul", { class: "list" })
-  const body = el("div", { class: "dialog__body" }, [list])
+  const body = el("div", { class: "dialog__body dialog__body--scroll" }, [list])
   const newButton = el("button", { class: "btn btn--primary", type: "button" }, ["New session"])
   const closeButton = el("button", { class: "btn btn--secondary", type: "button" }, ["Close"])
 
@@ -60,7 +67,8 @@ export function openSessionPicker(actions: SessionPickerActions): void {
 
   const rowFor = (session: SessionInfo): HTMLElement => {
     const current = session.id === actions.currentSessionId()
-    const label = session.title === "" ? session.id.slice(0, 8) : session.title
+    const label =
+      session.title === "" ? session.id.slice(0, SESSION_ID_PREVIEW_LENGTH) : session.title
     const main = button(
       { class: "row", ...(current ? { "aria-current": "true" } : {}) },
       [
@@ -68,7 +76,9 @@ export function openSessionPicker(actions: SessionPickerActions): void {
           dot(session.alive ? "connected" : "idle", session.alive ? "Alive" : "Stopped"),
         ]),
         el("span", { class: "row__label", title: label }, [label]),
-        el("span", { class: "row__meta" }, [`${session.clients}c`]),
+        el("span", { class: "row__meta" }, [
+          `${session.id.slice(0, SESSION_ID_PREVIEW_LENGTH)} · ${session.clients}c`,
+        ]),
       ],
       () => {
         actions.onAttach(session.id)
@@ -76,26 +86,27 @@ export function openSessionPicker(actions: SessionPickerActions): void {
       },
     )
     const kill = iconButton(
-      `Kill ${label}`,
-      "\u2715",
+      `Kill ${label} (${session.id.slice(0, SESSION_ID_PREVIEW_LENGTH)})`,
+      "close",
       "danger",
       () => void remove(session.id, label),
     )
     return el("li", { class: "list__item" }, [main, el("span", { class: "row__actions" }, [kill])])
   }
 
-  async function remove(id: string, label: string): Promise<void> {
+  async function remove(id: SessionId, label: string): Promise<void> {
     try {
       await apiRaw(`/api/sessions?id=${encodeURIComponent(id)}`, { method: "DELETE" })
       actions.onToast(`Killed ${label}`, "success")
       load()
     } catch (error) {
-      actions.onToast(errorMessage(error, "Could not kill session"), "error")
+      if (error instanceof Error) actions.onToast(error.message, "error")
+      else actions.onToast(errorMessage(error, "Could not kill session"), "error")
     }
   }
 
   function load(): void {
-    void apiRequest<ListResponse>("/api/sessions")
+    void apiRequest("/api/sessions", { schema: listResponseSchema })
       .then((data) => {
         if (data.sessions.length === 0) {
           showEmpty()
@@ -105,16 +116,20 @@ export function openSessionPicker(actions: SessionPickerActions): void {
         replace(body, [list])
       })
       .catch((error: unknown) => {
-        actions.onToast(errorMessage(error, "Could not list sessions"), "error")
+        if (error instanceof Error) actions.onToast(error.message, "error")
+        else actions.onToast(errorMessage(error, "Could not list sessions"), "error")
       })
   }
 
   newButton.addEventListener("click", () => {
     newButton.disabled = true
-    void apiRequest<CreateResponse>("/api/sessions", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({}),
+    void apiRequest("/api/sessions", {
+      schema: createResponseSchema,
+      init: {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({}),
+      },
     })
       .then((data) => {
         actions.onAttach(data.session.id)
@@ -122,7 +137,8 @@ export function openSessionPicker(actions: SessionPickerActions): void {
         overlay.close()
       })
       .catch((error: unknown) => {
-        actions.onToast(errorMessage(error, "Could not create session"), "error")
+        if (error instanceof Error) actions.onToast(error.message, "error")
+        else actions.onToast(errorMessage(error, "Could not create session"), "error")
         newButton.disabled = false
       })
   })

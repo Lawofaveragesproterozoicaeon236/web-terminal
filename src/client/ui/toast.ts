@@ -1,12 +1,13 @@
-import { button, el, replace } from "./dom.ts"
+import { button, el, icon, replace } from "./dom.ts"
 
-export type ToastTone = "info" | "success" | "warning" | "error"
+type ToastTone = "info" | "success" | "warning" | "error"
 
-export type Toaster = {
+type Toaster = {
   readonly show: (message: string, tone?: ToastTone) => void
   readonly element: HTMLElement
 }
 
+/** Toast lifetime state; timer mutation pauses and resumes auto-dismissal. */
 type Entry = {
   readonly id: number
   readonly message: string
@@ -45,7 +46,7 @@ export function createToaster(): Toaster {
       },
       [
         el("div", { class: "toast__body" }, [entry.message]),
-        button({ class: "toast__close", "aria-label": "Dismiss" }, ["\u00d7"], () =>
+        button({ class: "toast__close", "aria-label": "Dismiss" }, [icon("close")], () =>
           dismiss(entry.id),
         ),
       ],

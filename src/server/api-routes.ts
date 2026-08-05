@@ -1,5 +1,7 @@
 import type { Server } from "bun"
 import { z } from "zod"
+import { assertNever } from "../shared/assert-never.ts"
+import { sessionIdSchema } from "../shared/protocol.ts"
 import type { Auth } from "./auth.ts"
 import type { ServerConfig } from "./config.ts"
 import { type FilesApi, FilesError } from "./files.ts"
@@ -17,11 +19,13 @@ import {
 import type { SessionStore } from "./session-store.ts"
 
 const SESSION_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 7
-const loginSchema = z.object({ password: z.string().min(1).max(1024) })
-const createSessionSchema = z.object({
-  title: z.string().min(1).max(64).optional(),
-  command: z.array(z.string().min(1)).min(1).max(16).optional(),
-})
+const loginSchema = z.object({ password: z.string().min(1).max(1024) }).readonly()
+const createSessionSchema = z
+  .object({
+    title: z.string().min(1).max(64).optional(),
+    command: z.array(z.string().min(1)).min(1).max(16).readonly().optional(),
+  })
+  .readonly()
 
 export type ApiContext = {
   readonly auth: Auth
@@ -32,8 +36,26 @@ export type ApiContext = {
 }
 
 function filesErrorResponse(error: FilesError): Response {
-  const status = error.code === "not-found" ? 404 : error.code === "outside-root" ? 403 : 400
-  return json({ error: error.code }, status)
+  switch (error.code) {
+    case "not-found":
+      return json({ error: error.code }, 404)
+    case "outside-root":
+      return json({ error: error.code }, 403)
+    case "not-a-file":
+    case "not-a-directory":
+      return json({ error: error.code }, 400)
+    default:
+      return assertNever(error.code)
+  }
+}
+
+async function readJson(req: Request): Promise<unknown | undefined> {
+  try {
+    return await req.json()
+  } catch (error) {
+    if (error instanceof SyntaxError) return undefined
+    throw error
+  }
 }
 
 async function handleLogin(
@@ -41,7 +63,7 @@ async function handleLogin(
   server: Server<unknown>,
   ctx: ApiContext,
 ): Promise<Response> {
-  const body = loginSchema.safeParse(await req.json().catch(() => undefined))
+  const body = loginSchema.safeParse(await readJson(req))
   if (!body.success) return json({ error: "bad-request" }, 400)
   const ip = clientIp(req, server.requestIP(req)?.address ?? "unknown")
   const result = await ctx.auth.login(body.data.password, ip)
@@ -60,6 +82,8 @@ async function handleLogin(
       return json({ error: "rate-limited", retryAfterSeconds: result.retryAfterSeconds }, 429, {
         "retry-after": String(result.retryAfterSeconds),
       })
+    default:
+      return assertNever(result)
   }
 }
 
@@ -76,7 +100,7 @@ async function handleFiles(req: Request, url: URL, ctx: ApiContext): Promise<Res
       const headers = new Headers({ "content-type": "application/octet-stream" })
       if (download)
         headers.set("content-disposition", `attachment; filename="${encodeURIComponent(name)}"`)
-      return new Response(content.slice().buffer as ArrayBuffer, { headers })
+      return new Response(Uint8Array.from(content), { headers })
     }
     if (url.pathname === "/api/files/content" && req.method === "PUT") {
       await ctx.files.write(path, new Uint8Array(await req.arrayBuffer()))
@@ -104,26 +128,21 @@ async function handleHerdrSnapshot(ctx: ApiContext): Promise<Response> {
   }
 }
 
-function handleSessions(req: Request, url: URL, ctx: ApiContext): Promise<Response> | Response {
+async function handleSessions(req: Request, url: URL, ctx: ApiContext): Promise<Response> {
   if (req.method === "GET") return json({ sessions: ctx.sessions.list() })
   if (req.method === "POST") {
-    return req
-      .json()
-      .catch(() => undefined)
-      .then((raw): Response => {
-        const body = createSessionSchema.safeParse(raw ?? {})
-        if (!body.success) return json({ error: "bad-request" }, 400)
-        const session = ctx.sessions.create({
-          ...(body.data.title === undefined ? {} : { title: body.data.title }),
-          ...(body.data.command === undefined ? {} : { command: body.data.command }),
-        })
-        return json({ session: session.info() }, 201)
-      })
+    const body = createSessionSchema.safeParse((await readJson(req)) ?? {})
+    if (!body.success) return json({ error: "bad-request" }, 400)
+    const session = ctx.sessions.create({
+      ...(body.data.title === undefined ? {} : { title: body.data.title }),
+      ...(body.data.command === undefined ? {} : { command: body.data.command }),
+    })
+    return json({ session: session.info() }, 201)
   }
   if (req.method === "DELETE") {
-    const id = url.searchParams.get("id")
-    if (id === null) return json({ error: "bad-request" }, 400)
-    ctx.sessions.remove(id)
+    const id = sessionIdSchema.safeParse(url.searchParams.get("id"))
+    if (!id.success) return json({ error: "bad-request" }, 400)
+    ctx.sessions.remove(id.data)
     return json({ ok: true })
   }
   return json({ error: "method-not-allowed" }, 405)

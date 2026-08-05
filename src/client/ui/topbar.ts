@@ -1,7 +1,7 @@
 import type { ConnectionState } from "../connection.ts"
-import { button, dot, el } from "./dom.ts"
+import { button, dot, el, icon } from "./dom.ts"
 
-export type TopBar = {
+type TopBar = {
   readonly element: HTMLElement
   readonly setState: (state: ConnectionState) => void
   readonly setLatency: (ms: number) => void
@@ -9,7 +9,7 @@ export type TopBar = {
   readonly setSidebarExpanded: (open: boolean) => void
 }
 
-export type TopBarActions = {
+type TopBarActions = {
   readonly onToggleSidebar: () => void
   readonly onOpenSessions: () => void
 }
@@ -29,10 +29,12 @@ const STATE_DOT: Readonly<Record<ConnectionState, string>> = {
   closed: "offline",
 }
 
-/** DESIGN.md 5.10 tonal thresholds. */
+const GOOD_LATENCY_MAX_MS = 80
+const FAIR_LATENCY_MAX_MS = 200
+
 function latencyTone(ms: number): string {
-  if (ms < 80) return "good"
-  if (ms <= 200) return "fair"
+  if (ms < GOOD_LATENCY_MAX_MS) return "good"
+  if (ms <= FAIR_LATENCY_MAX_MS) return "fair"
   return "poor"
 }
 
@@ -59,7 +61,7 @@ export function createTopBar(actions: TopBarActions): TopBar {
       "aria-expanded": "false",
       title: "Toggle panel",
     },
-    ["\u2630"],
+    [icon("menu")],
     actions.onToggleSidebar,
   )
 

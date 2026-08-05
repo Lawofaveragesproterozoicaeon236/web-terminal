@@ -6,52 +6,81 @@ export const OPCODE = {
   input: 0x02,
 } as const
 
-export type Opcode = (typeof OPCODE)[keyof typeof OPCODE]
-
 const OUTPUT_HEADER_BYTES = 9
 const OFFSET_BYTES = 8
+
+export const DEFAULT_TERMINAL_DIMENSIONS = { cols: 80, rows: 24 } as const
+const TERMINAL_DIMENSION_LIMITS = {
+  minCols: 2,
+  maxCols: 1000,
+  minRows: 1,
+  maxRows: 1000,
+} as const
+export const SESSION_ID_PREVIEW_LENGTH = 8
 
 export class ProtocolError extends Error {
   override readonly name = "ProtocolError"
 }
 
-export const clientHelloSchema = z.object({
-  t: z.literal("hello"),
-  sessionId: z.string().optional(),
-  lastOffset: z.number().int().nonnegative().optional(),
-  cols: z.number().int().min(2).max(1000),
-  rows: z.number().int().min(1).max(1000),
-})
+export const sessionIdSchema = z.string().brand("SessionId")
+export type SessionId = z.infer<typeof sessionIdSchema>
 
-export const resizeSchema = z.object({
-  t: z.literal("resize"),
-  cols: z.number().int().min(2).max(1000),
-  rows: z.number().int().min(1).max(1000),
-})
+const clientHelloSchema = z
+  .object({
+    t: z.literal("hello"),
+    sessionId: sessionIdSchema.optional(),
+    lastOffset: z.number().int().nonnegative().optional(),
+    cols: z
+      .number()
+      .int()
+      .min(TERMINAL_DIMENSION_LIMITS.minCols)
+      .max(TERMINAL_DIMENSION_LIMITS.maxCols),
+    rows: z
+      .number()
+      .int()
+      .min(TERMINAL_DIMENSION_LIMITS.minRows)
+      .max(TERMINAL_DIMENSION_LIMITS.maxRows),
+  })
+  .readonly()
 
-export const pingSchema = z.object({ t: z.literal("ping") })
+const resizeSchema = z
+  .object({
+    t: z.literal("resize"),
+    cols: z
+      .number()
+      .int()
+      .min(TERMINAL_DIMENSION_LIMITS.minCols)
+      .max(TERMINAL_DIMENSION_LIMITS.maxCols),
+    rows: z
+      .number()
+      .int()
+      .min(TERMINAL_DIMENSION_LIMITS.minRows)
+      .max(TERMINAL_DIMENSION_LIMITS.maxRows),
+  })
+  .readonly()
 
-export const clientControlSchema = z.discriminatedUnion("t", [
-  clientHelloSchema,
-  resizeSchema,
-  pingSchema,
-])
+const pingSchema = z.object({ t: z.literal("ping") }).readonly()
+
+const clientControlSchema = z.discriminatedUnion("t", [clientHelloSchema, resizeSchema, pingSchema])
 
 export type ClientControl = z.infer<typeof clientControlSchema>
 
-export type ServerControl =
-  | { readonly t: "welcome"; readonly sessionId: string; readonly offset: number }
-  | { readonly t: "reset"; readonly offset: number }
-  | { readonly t: "pong" }
-  | { readonly t: "exit"; readonly code: number }
-  | { readonly t: "error"; readonly message: string }
+const serverControlSchema = z.discriminatedUnion("t", [
+  z.object({ t: z.literal("welcome"), sessionId: sessionIdSchema, offset: z.number() }).readonly(),
+  z.object({ t: z.literal("reset"), offset: z.number() }).readonly(),
+  z.object({ t: z.literal("pong") }).readonly(),
+  z.object({ t: z.literal("exit"), code: z.number().int() }).readonly(),
+  z.object({ t: z.literal("error"), message: z.string() }).readonly(),
+])
 
-export type OutputFrame = {
+export type ServerControl = z.infer<typeof serverControlSchema>
+
+type OutputFrame = {
   readonly kind: "output"
   readonly offset: number
   readonly payload: Uint8Array
 }
-export type InputFrame = { readonly kind: "input"; readonly payload: Uint8Array }
+type InputFrame = { readonly kind: "input"; readonly payload: Uint8Array }
 export type BinaryFrame = OutputFrame | InputFrame
 
 export function encodeOutput(offset: number, payload: Uint8Array): Uint8Array<ArrayBuffer> {
@@ -90,15 +119,23 @@ export function decodeBinaryFrame(data: Uint8Array): BinaryFrame {
   }
 }
 
-export function parseClientControl(raw: string): ClientControl {
-  let json: unknown
+function parseJson(raw: string): unknown {
   try {
-    json = JSON.parse(raw)
+    return JSON.parse(raw)
   } catch (error) {
     if (error instanceof SyntaxError) throw new ProtocolError(`malformed control: ${error.message}`)
     throw error
   }
-  const parsed = clientControlSchema.safeParse(json)
+}
+
+export function parseClientControl(raw: string): ClientControl {
+  const parsed = clientControlSchema.safeParse(parseJson(raw))
+  if (!parsed.success) throw new ProtocolError(`invalid control: ${parsed.error.message}`)
+  return parsed.data
+}
+
+export function parseServerControl(raw: string): ServerControl {
+  const parsed = serverControlSchema.safeParse(parseJson(raw))
   if (!parsed.success) throw new ProtocolError(`invalid control: ${parsed.error.message}`)
   return parsed.data
 }

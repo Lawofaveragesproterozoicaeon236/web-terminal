@@ -1,40 +1,16 @@
-import { el } from "./dom.ts"
+import { assertNever } from "../../shared/assert-never.ts"
+import { el, icon } from "./dom.ts"
+import {
+  KEYS,
+  type ModifierId,
+  REPEAT_DELAY_MS,
+  REPEAT_INTERVAL_MS,
+  REPEATING,
+} from "./toolbar-keys.ts"
 
-/** DESIGN.md 5.9 key variants. `data-key` values are QA driver hooks. */
-type KeyKind = "default" | "modifier" | "combo" | "action"
+type ModifierState = { readonly ctrl: boolean; readonly alt: boolean }
 
-type KeyDef = {
-  readonly id: string
-  readonly label: string
-  readonly kind: KeyKind
-  readonly send?: string
-  readonly ariaLabel?: string
-}
-
-const KEYS: readonly KeyDef[] = [
-  { id: "esc", label: "Esc", kind: "default", send: "\u001b" },
-  { id: "tab", label: "Tab", kind: "default", send: "\t" },
-  { id: "ctrl", label: "Ctrl", kind: "modifier" },
-  { id: "alt", label: "Alt", kind: "modifier" },
-  { id: "up", label: "\u2191", kind: "default", send: "\u001b[A", ariaLabel: "Arrow up" },
-  { id: "down", label: "\u2193", kind: "default", send: "\u001b[B", ariaLabel: "Arrow down" },
-  { id: "left", label: "\u2190", kind: "default", send: "\u001b[D", ariaLabel: "Arrow left" },
-  { id: "right", label: "\u2192", kind: "default", send: "\u001b[C", ariaLabel: "Arrow right" },
-  { id: "pipe", label: "|", kind: "default", send: "|" },
-  { id: "tilde", label: "~", kind: "default", send: "~" },
-  { id: "slash", label: "/", kind: "default", send: "/" },
-  { id: "dash", label: "-", kind: "default", send: "-" },
-  { id: "ctrl-c", label: "^C", kind: "combo", send: "\u0003" },
-  { id: "paste", label: "\u2318V", kind: "action", ariaLabel: "Paste from clipboard" },
-]
-
-const REPEATING: ReadonlySet<string> = new Set(["up", "down", "left", "right", "ctrl-c"])
-const REPEAT_DELAY_MS = 400
-const REPEAT_INTERVAL_MS = 60
-
-export type ModifierState = { readonly ctrl: boolean; readonly alt: boolean }
-
-export type Toolbar = {
+type Toolbar = {
   readonly element: HTMLElement
   /** Modifier latch state, read by the terminal key interceptor. */
   readonly modifiers: () => ModifierState
@@ -42,7 +18,7 @@ export type Toolbar = {
   readonly clearLatches: () => void
 }
 
-export type ToolbarActions = {
+type ToolbarActions = {
   readonly sendKeys: (data: string) => void
   readonly focusTerminal: () => void
   readonly onError: (message: string) => void
@@ -50,6 +26,10 @@ export type ToolbarActions = {
 }
 
 type LatchLevel = "off" | "latched" | "locked"
+
+const LOWERCASE_A_CODE = "a".charCodeAt(0)
+const LOWERCASE_Z_CODE = "z".charCodeAt(0)
+const CONTROL_CODE_MASK = 0x1f
 
 export function createToolbar(actions: ToolbarActions): Toolbar {
   const track = el("div", {
@@ -61,7 +41,7 @@ export function createToolbar(actions: ToolbarActions): Toolbar {
   const hint = el("div", { class: "keyhint", role: "status", "aria-live": "polite", hidden: true })
   const element = el("div", { class: "stack" }, [hint, track])
 
-  const latches = new Map<string, LatchLevel>([
+  const latches = new Map<ModifierId, LatchLevel>([
     ["ctrl", "off"],
     ["alt", "off"],
   ])
@@ -100,10 +80,21 @@ export function createToolbar(actions: ToolbarActions): Toolbar {
     paint()
   }
 
-  /** Single tap latches, second tap locks, third clears (DESIGN.md 5.9). */
-  const cycleLatch = (id: string): void => {
+  const cycleLatch = (id: ModifierId): void => {
     const level = latches.get(id) ?? "off"
-    latches.set(id, level === "off" ? "latched" : level === "latched" ? "locked" : "off")
+    switch (level) {
+      case "off":
+        latches.set(id, "latched")
+        break
+      case "latched":
+        latches.set(id, "locked")
+        break
+      case "locked":
+        latches.set(id, "off")
+        break
+      default:
+        assertNever(level)
+    }
     paint()
   }
 
@@ -113,21 +104,28 @@ export function createToolbar(actions: ToolbarActions): Toolbar {
       .then((text) => {
         if (text !== "") actions.sendKeys(text)
       })
-      .catch(() => actions.onError("Clipboard read was blocked."))
+      .catch((error: unknown) => {
+        if (!(error instanceof Error)) throw error
+        actions.onError("Clipboard read was blocked.")
+      })
   }
 
-  const fire = (def: KeyDef): void => {
-    if (def.kind === "modifier") {
-      cycleLatch(def.id)
-      return
+  const fire = (def: (typeof KEYS)[number]): void => {
+    switch (def.kind) {
+      case "modifier":
+        cycleLatch(def.id)
+        return
+      case "action":
+        pasteFromClipboard()
+        return
+      case "default":
+      case "combo":
+        actions.sendKeys(applyLatches(def.send, state()))
+        clearLatches()
+        return
+      default:
+        assertNever(def)
     }
-    if (def.kind === "action") {
-      pasteFromClipboard()
-      return
-    }
-    if (def.send === undefined) return
-    actions.sendKeys(applyLatches(def.send, state()))
-    clearLatches()
   }
 
   for (const def of KEYS) {
@@ -136,10 +134,11 @@ export function createToolbar(actions: ToolbarActions): Toolbar {
       class: "key",
       "data-key": def.id,
       ...(def.kind === "modifier" ? { "aria-pressed": "false" } : {}),
-      ...(def.ariaLabel === undefined ? {} : { "aria-label": def.ariaLabel }),
+      ...("ariaLabel" in def ? { "aria-label": def.ariaLabel } : {}),
       tabindex: "-1",
     })
-    cap.textContent = def.label
+    if ("icon" in def) cap.appendChild(icon(def.icon))
+    else cap.textContent = def.label
     if (def.kind === "action" && navigator.clipboard === undefined) {
       cap.disabled = true
       cap.setAttribute("aria-disabled", "true")
@@ -163,11 +162,10 @@ export function createToolbar(actions: ToolbarActions): Toolbar {
       cap.dataset["pressed"] = "true"
       fire(def)
       actions.focusTerminal()
-      if (!REPEATING.has(def.id) || def.send === undefined) return
+      if (!REPEATING.has(def.id) || !("send" in def)) return
+      const send = def.send
       repeatDelay = setTimeout(() => {
-        repeatTimer = setInterval(() => {
-          if (def.send !== undefined) actions.sendKeys(def.send)
-        }, REPEAT_INTERVAL_MS)
+        repeatTimer = setInterval(() => actions.sendKeys(send), REPEAT_INTERVAL_MS)
       }, REPEAT_DELAY_MS)
     })
     for (const done of ["pointerup", "pointercancel", "pointerleave"]) {
@@ -190,19 +188,26 @@ export function createToolbar(actions: ToolbarActions): Toolbar {
 
   // Roving tabindex across the toolbar (DESIGN.md 5.9).
   track.addEventListener("keydown", (event) => {
-    const offset =
-      event.key === "ArrowRight"
-        ? 1
-        : event.key === "ArrowLeft"
-          ? -1
-          : event.key === "Home"
-            ? Number.NEGATIVE_INFINITY
-            : event.key === "End"
-              ? Number.POSITIVE_INFINITY
-              : 0
+    let offset = 0
+    switch (event.key) {
+      case "ArrowRight":
+        offset = 1
+        break
+      case "ArrowLeft":
+        offset = -1
+        break
+      case "Home":
+        offset = Number.NEGATIVE_INFINITY
+        break
+      case "End":
+        offset = Number.POSITIVE_INFINITY
+        break
+    }
     if (offset === 0) return
     event.preventDefault()
-    const current = keyNodes.findIndex((node) => node === document.activeElement)
+    const activeElement = document.activeElement
+    const current =
+      activeElement instanceof HTMLButtonElement ? keyNodes.indexOf(activeElement) : -1
     const base = current === -1 ? 0 : current
     const next = Math.max(0, Math.min(keyNodes.length - 1, base + offset))
     const target = keyNodes[next]
@@ -220,7 +225,9 @@ export function applyLatches(data: string, mods: ModifierState): string {
   let out = data
   if (mods.ctrl && out.length === 1) {
     const code = out.toLowerCase().charCodeAt(0)
-    if (code >= 97 && code <= 122) out = String.fromCharCode(code & 0x1f)
+    if (code >= LOWERCASE_A_CODE && code <= LOWERCASE_Z_CODE) {
+      out = String.fromCharCode(code & CONTROL_CODE_MASK)
+    }
   }
   if (mods.alt) out = `\u001b${out}`
   return out

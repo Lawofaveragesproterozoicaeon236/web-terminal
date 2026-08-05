@@ -19,8 +19,6 @@ export type DirEntry = {
   readonly mtimeMs: number
 }
 
-export type FileStat = Pick<Stats, "size" | "mtimeMs">
-
 function isSystemError(error: unknown): error is NodeJS.ErrnoException {
   return error instanceof Error && "code" in error
 }
@@ -57,7 +55,9 @@ export class FilesApi {
       names.map(async (name): Promise<DirEntry> => {
         try {
           const s = await stat(join(dir, name))
-          const kind = s.isDirectory() ? "directory" : s.isFile() ? "file" : "other"
+          let kind: DirEntry["kind"] = "other"
+          if (s.isDirectory()) kind = "directory"
+          else if (s.isFile()) kind = "file"
           return { name, kind, size: s.size, mtimeMs: s.mtimeMs }
         } catch (error) {
           if (isSystemError(error)) return { name, kind: "other", size: 0, mtimeMs: 0 }
@@ -65,9 +65,10 @@ export class FilesApi {
         }
       }),
     )
-    return entries.toSorted((a, b) =>
-      a.kind === b.kind ? a.name.localeCompare(b.name) : a.kind === "directory" ? -1 : 1,
-    )
+    return entries.toSorted((a, b) => {
+      if (a.kind === b.kind) return a.name.localeCompare(b.name)
+      return a.kind === "directory" ? -1 : 1
+    })
   }
 
   async read(relPath: string): Promise<Uint8Array> {

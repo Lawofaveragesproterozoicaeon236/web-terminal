@@ -32,7 +32,7 @@ export async function startServer(env: Readonly<Record<string, string | undefine
     port: config.port,
     hostname: config.host,
     routes: { "/": indexPage },
-    async fetch(req, serverInstance) {
+    async fetch(req, serverInstance): Promise<Response | undefined> {
       const url = new URL(req.url)
       if (url.pathname === "/ghostty-vt.wasm") {
         return new Response(Bun.file(GHOSTTY_WASM_PATH), {
@@ -47,7 +47,7 @@ export async function startServer(env: Readonly<Record<string, string | undefine
         const upgraded = serverInstance.upgrade(req, {
           data: { detach: undefined, session: undefined },
         })
-        if (upgraded) return undefined as unknown as Response
+        if (upgraded) return undefined
         return new Response("upgrade failed", { status: 400 })
       }
       const api = await handleApi(req, serverInstance, ctx)

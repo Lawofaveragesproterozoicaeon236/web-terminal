@@ -1,0 +1,212 @@
+/*
+ * web-terminal component layer. DESIGN.md section 5.
+ * Every value here is a token from styles.css. Browser mechanics
+ * (minmax(0,1fr), 100dvh, clamp(), env(), ch) stay raw per DESIGN.md 4.4.
+ */
+
+.icon {
+  inline-size: var(--size-icon);
+  block-size: var(--size-icon);
+  flex: none;
+}
+
+.icon__path {
+  stroke: currentColor;
+  stroke-width: var(--size-focus-ring);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ---------- 5.1 Button ---------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  min-block-size: var(--size-control);
+  padding-inline: var(--space-3);
+  border: var(--size-hairline) solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  line-height: 1.5;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: opacity var(--dur-micro) var(--ease-out);
+}
+
+.btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.btn--primary {
+  background: var(--accent-primary);
+  color: var(--text-inverse);
+  font-weight: var(--weight-semibold);
+}
+
+.btn--primary:hover:not(:disabled),
+.btn--danger:hover:not(:disabled) {
+  opacity: 0.72;
+}
+
+.btn--secondary {
+  border-color: var(--border-default);
+  color: var(--text-primary);
+}
+
+.btn--ghost {
+  color: var(--text-secondary);
+}
+
+.btn--secondary:hover:not(:disabled),
+.btn--ghost:hover:not(:disabled) {
+  background: var(--surface-raised);
+  color: var(--text-primary);
+}
+
+.btn--danger {
+  border-color: var(--border-default);
+  color: var(--status-error);
+}
+
+.btn:disabled,
+.btn[aria-disabled="true"] {
+  opacity: 0.5;
+  color: var(--text-tertiary);
+  cursor: not-allowed;
+}
+
+.btn--icon {
+  min-inline-size: var(--size-control);
+  padding-inline: var(--space-2);
+}
+
+/* ---------- 5.2 Input ---------- */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-inline-size: 0;
+}
+
+.field__label {
+  color: var(--text-secondary);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+}
+
+.field__input {
+  min-inline-size: 0;
+  min-block-size: var(--size-control);
+  padding-inline: var(--space-3);
+  border: var(--size-hairline) solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--surface-secondary);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: var(--text-body);
+}
+
+.field__input:hover {
+  border-color: var(--border-strong);
+}
+
+.field__input:focus-visible {
+  border-color: var(--accent-primary);
+}
+
+.field__input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.field[data-invalid="true"] .field__input {
+  border-color: var(--status-error);
+  background: var(--status-error-wash);
+}
+
+.field__msg {
+  margin: 0;
+  font-size: var(--text-caption);
+  color: var(--text-secondary);
+}
+
+.field__msg[data-tone="error"] {
+  color: var(--status-error);
+}
+
+.field__msg[data-tone="warning"] {
+  color: var(--status-warning);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- 5.11 Login card ---------- */
+.login {
+  display: grid;
+  place-items: center;
+  block-size: 100dvh;
+  padding: var(--space-4);
+  padding-block-start: calc(var(--space-4) + var(--safe-top));
+  padding-block-end: calc(var(--space-4) + var(--safe-bottom));
+  background: var(--surface-canvas);
+}
+
+.login__card {
+  display: flex;
+  flex-direction: column;
+  inline-size: min(100% - var(--space-8), var(--size-login-max));
+  padding: var(--space-6);
+  border: var(--size-hairline) solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--surface-primary);
+  animation: fade-in var(--dur-standard) var(--ease-out);
+}
+
+.login__title {
+  margin: 0 0 var(--space-6);
+  font-size: var(--text-title);
+  font-weight: var(--weight-semibold);
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+}
+
+.login__submit {
+  margin-block-start: var(--space-4);
+}
+
+.login__note {
+  margin: var(--space-6) 0 0;
+  color: var(--text-tertiary);
+  font-size: var(--text-micro);
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (min-width: 48rem) {
+  .btn,
+  .field__input {
+    min-block-size: var(--size-control);
+  }
+}
+
+@media (max-width: 47.9375rem) {
+  .field__input {
+    min-block-size: var(--size-control-touch);
+    font-size: 1rem;
+  }
+
+  .btn {
+    min-block-size: var(--size-control-touch);
+  }
+}

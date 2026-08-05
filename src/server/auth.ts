@@ -1,11 +1,13 @@
 const TOKEN_BYTES = 32
+const PASSWORD_MEMORY_COST = 65_536
+const PASSWORD_TIME_COST = 3
 
-export type LoginResult =
+type LoginResult =
   | { readonly kind: "ok"; readonly token: string }
   | { readonly kind: "invalid" }
   | { readonly kind: "rate-limited"; readonly retryAfterSeconds: number }
 
-export type AuthOptions = {
+type AuthOptions = {
   readonly passwordHash: string
   readonly sessionTtlMs?: number
   readonly maxFailures?: number
@@ -14,11 +16,15 @@ export type AuthOptions = {
 }
 
 export async function hashPassword(password: string): Promise<string> {
-  return Bun.password.hash(password, { algorithm: "argon2id", memoryCost: 65536, timeCost: 3 })
+  return Bun.password.hash(password, {
+    algorithm: "argon2id",
+    memoryCost: PASSWORD_MEMORY_COST,
+    timeCost: PASSWORD_TIME_COST,
+  })
 }
 
-type SessionRecord = { expiresAt: number }
-type FailureRecord = { failures: number[] }
+type SessionRecord = { readonly expiresAt: number }
+type FailureRecord = { readonly failures: readonly number[] }
 
 const DEFAULT_SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 7
 const DEFAULT_MAX_FAILURES = 5

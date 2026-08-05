@@ -2,9 +2,12 @@ import { afterEach, describe, expect, test } from "bun:test"
 import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
+import { z } from "zod"
 import { HerdrClient, HerdrError } from "../src/server/herdr.ts"
 
 type MockServer = { readonly stop: () => void }
+
+const requestSchema = z.object({ id: z.string(), method: z.string() }).readonly()
 
 const SNAPSHOT_RESULT = {
   type: "session_snapshot",
@@ -35,7 +38,7 @@ function startMockHerdr(socketPath: string): MockServer {
       data(socket, chunk) {
         for (const line of chunk.toString().split("\n")) {
           if (line.trim() === "") continue
-          const request = JSON.parse(line) as { id: string; method: string }
+          const request = requestSchema.parse(JSON.parse(line))
           const respond = (body: Record<string, unknown>): void => {
             socket.write(`${JSON.stringify({ id: request.id, ...body })}\n`)
           }

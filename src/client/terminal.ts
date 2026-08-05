@@ -1,11 +1,12 @@
 import { FitAddon, init, Terminal } from "ghostty-web"
+import { type SessionId, sessionIdSchema } from "../shared/protocol.ts"
 import { type ConnectionState, TerminalConnection } from "./connection.ts"
 
-export type TerminalAppEvents = {
+type TerminalAppEvents = {
   readonly onState: (state: ConnectionState) => void
   readonly onLatency: (ms: number) => void
   readonly onTitle: (title: string) => void
-  readonly onSession: (sessionId: string) => void
+  readonly onSession: (sessionId: SessionId) => void
 }
 
 export type TerminalApp = {
@@ -13,11 +14,14 @@ export type TerminalApp = {
   readonly connection: TerminalConnection
   readonly fit: () => void
   readonly sendKeys: (data: string) => void
-  readonly switchSession: (sessionId: string | undefined) => void
+  readonly switchSession: (sessionId: SessionId | undefined) => void
   readonly dispose: () => void
 }
 
 const SESSION_STORAGE_KEY = "wt:session-id"
+const DEFAULT_FONT_SIZE = 14
+const TERMINAL_SCROLLBACK_LINES = 10_000
+const TERMINAL_FONT_FAMILY = 'ui-monospace, "SF Mono", Menlo, Consolas, monospace'
 
 export type TerminalTheme = Readonly<Record<string, string>>
 
@@ -29,9 +33,9 @@ export async function createTerminalApp(
   await init()
   const terminal = new Terminal({
     cursorBlink: true,
-    fontSize: 14,
-    fontFamily: 'ui-monospace, "SF Mono", Menlo, Consolas, monospace',
-    scrollback: 10_000,
+    fontSize: DEFAULT_FONT_SIZE,
+    fontFamily: TERMINAL_FONT_FAMILY,
+    scrollback: TERMINAL_SCROLLBACK_LINES,
     theme,
   })
   const fitAddon = new FitAddon()
@@ -56,8 +60,12 @@ export async function createTerminalApp(
   terminal.onResize(({ cols, rows }) => connection.sendResize(cols, rows))
   terminal.onTitleChange(events.onTitle)
   window.addEventListener("resize", () => fitAddon.fit())
-  const storedSession = localStorage.getItem(SESSION_STORAGE_KEY) ?? undefined
-  connection.connect(terminal.cols, terminal.rows, storedSession)
+  const storedSession = sessionIdSchema.safeParse(localStorage.getItem(SESSION_STORAGE_KEY))
+  connection.connect(
+    terminal.cols,
+    terminal.rows,
+    storedSession.success ? storedSession.data : undefined,
+  )
 
   return {
     terminal,

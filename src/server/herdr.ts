@@ -14,39 +14,47 @@ export class HerdrError extends Error {
   }
 }
 
-export const herdrWorkspaceSchema = z.object({
-  workspace_id: z.string(),
-  number: z.number().int(),
-  label: z.string(),
-  focused: z.boolean(),
-  pane_count: z.number().int(),
-  tab_count: z.number().int(),
-  agent_status: z.string(),
-})
+const herdrWorkspaceSchema = z
+  .object({
+    workspace_id: z.string(),
+    number: z.number().int(),
+    label: z.string(),
+    focused: z.boolean(),
+    pane_count: z.number().int(),
+    tab_count: z.number().int(),
+    agent_status: z.string(),
+  })
+  .readonly()
 
-export const herdrSnapshotSchema = z.object({
-  snapshot: z.object({
-    version: z.string(),
-    workspaces: z.array(herdrWorkspaceSchema).default([]),
-    agents: z.array(z.record(z.string(), z.unknown())).default([]),
-  }),
-})
+const herdrSnapshotSchema = z
+  .object({
+    snapshot: z
+      .object({
+        version: z.string(),
+        workspaces: z.array(herdrWorkspaceSchema).readonly().default([]),
+        agents: z.array(z.record(z.string(), z.unknown()).readonly()).readonly().default([]),
+      })
+      .readonly(),
+  })
+  .readonly()
 
-export type HerdrSnapshot = z.infer<typeof herdrSnapshotSchema>
-export type EnsureResult = "already-running" | "started"
+type HerdrSnapshot = z.infer<typeof herdrSnapshotSchema>
+type EnsureResult = "already-running" | "started"
 
-export type HerdrClientOptions = {
+type HerdrClientOptions = {
   readonly socketPath: string
   readonly requestTimeoutMs?: number
   readonly startServer?: () => Promise<void>
   readonly startDeadlineMs?: number
 }
 
-const responseSchema = z.object({
-  id: z.string(),
-  result: z.unknown().optional(),
-  error: z.object({ code: z.string(), message: z.string() }).optional(),
-})
+const responseSchema = z
+  .object({
+    id: z.string(),
+    result: z.unknown().optional(),
+    error: z.object({ code: z.string(), message: z.string() }).readonly().optional(),
+  })
+  .readonly()
 
 export class HerdrClient {
   readonly #socketPath: string

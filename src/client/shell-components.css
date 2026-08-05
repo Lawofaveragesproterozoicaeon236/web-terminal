@@ -1,0 +1,244 @@
+/* ---------- Top bar ---------- */
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-block-size: var(--size-topbar);
+  padding-inline: var(--space-4);
+  padding-block-start: var(--safe-top);
+  padding-inline-start: calc(var(--space-4) + var(--safe-left));
+  padding-inline-end: calc(var(--space-4) + var(--safe-right));
+  border-block-end: var(--size-hairline) solid var(--border-subtle);
+  background: var(--surface-primary);
+  z-index: var(--z-sticky);
+}
+
+.topbar__brand {
+  color: var(--text-secondary);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+}
+
+/* Below --bp-md the brand yields to the session name and status cluster. */
+@media (max-width: 47.9375rem) {
+  .topbar__brand {
+    display: none;
+  }
+
+  .topbar {
+    padding-inline: var(--space-3);
+  }
+}
+
+.topbar__session {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  /* Shrinkable and never a growth source: command text must not resize the
+     shell or push the status cluster out (DESIGN.md 4.4). */
+  min-inline-size: 0;
+  flex: 0 1 auto;
+  margin-inline-end: auto;
+  padding-inline: var(--space-2);
+  border: var(--size-hairline) solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  min-block-size: var(--size-tap);
+  cursor: pointer;
+}
+
+.topbar__session:hover {
+  background: var(--surface-raised);
+}
+
+.topbar__session-label {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.topbar__status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: none;
+  color: var(--text-secondary);
+  font-size: var(--text-caption);
+  white-space: nowrap;
+}
+
+.topbar__brand {
+  flex: none;
+}
+
+/* DESIGN.md 5.5: color is never the only signal, so the label ships at every
+   width. The session name truncates instead - it already carries `title`. */
+.topbar__status-label {
+  white-space: nowrap;
+}
+
+/* ---------- 5.5 Status dot ---------- */
+.dot {
+  inline-size: var(--size-dot);
+  block-size: var(--size-dot);
+  border-radius: var(--radius-full);
+  background: var(--status-neutral);
+  flex: none;
+}
+
+.dot[data-state="connected"] {
+  background: var(--status-success);
+}
+
+.dot[data-state="reconnecting"] {
+  background: var(--status-warning);
+  animation: dot-pulse var(--dur-pulse) var(--ease-in-out) infinite;
+}
+
+.dot[data-state="offline"] {
+  background: var(--status-error);
+}
+
+.dot[data-state="idle"] {
+  background: var(--status-neutral);
+}
+
+@keyframes dot-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+/* DESIGN.md 6.4 - the pulse is replaced by a static dot; the text label carries meaning */
+@media (prefers-reduced-motion: reduce) {
+  .dot[data-state="reconnecting"] {
+    animation: none;
+  }
+}
+
+/* ---------- 5.10 Latency chip ---------- */
+.chip {
+  padding: var(--space-1) var(--space-2);
+  flex: none;
+  border-radius: var(--radius-xs);
+  background: var(--surface-secondary);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--text-mono-micro);
+  font-weight: var(--weight-medium);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  /* fixed box so a 4-digit value cannot reflow the top bar (DESIGN.md 4.4) */
+  min-inline-size: 7ch;
+  text-align: center;
+  transition: opacity var(--dur-micro) var(--ease-out);
+}
+
+.chip[data-tone="fair"] {
+  color: var(--status-warning);
+}
+
+.chip[data-tone="poor"] {
+  color: var(--status-error);
+}
+
+.chip[data-tone="unknown"] {
+  color: var(--text-tertiary);
+}
+
+.chip[data-measuring="true"] {
+  opacity: 0.6;
+}
+
+/* ---------- Terminal region ---------- */
+.terminal {
+  min-block-size: 0;
+  min-inline-size: 0;
+  overflow: hidden;
+  background: var(--term-bg);
+}
+
+.terminal canvas {
+  display: block;
+}
+
+/* ---------- 5.3 Tab strip ---------- */
+.tabstrip {
+  display: flex;
+  min-block-size: var(--size-tap);
+  min-inline-size: 0;
+  border-block-end: var(--size-hairline) solid var(--border-subtle);
+  background: var(--surface-secondary);
+  z-index: var(--z-sticky);
+}
+
+.tab {
+  flex: 1 1 auto;
+  min-block-size: var(--size-tap);
+  min-inline-size: 0;
+  padding-inline: var(--space-4);
+  border: 0;
+  border-block-end: var(--size-hairline) solid transparent;
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+}
+
+.tab:hover {
+  color: var(--text-primary);
+}
+
+.tab[aria-selected="true"] {
+  color: var(--text-primary);
+  border-block-end-color: var(--accent-primary);
+}
+
+/* ---------- Sidebar ---------- */
+.sidebar {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  min-block-size: 0;
+  min-inline-size: 0;
+  background: var(--surface-primary);
+  border-inline-start: var(--size-hairline) solid var(--border-subtle);
+}
+
+.sidebar__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-inline-size: 0;
+  padding: var(--space-3) var(--space-4);
+  border-block-end: var(--size-hairline) solid var(--border-subtle);
+}
+
+.sidebar__title {
+  margin: 0;
+  font-size: var(--text-heading);
+  font-weight: var(--weight-semibold);
+  letter-spacing: -0.005em;
+}
+
+.panel {
+  padding: var(--space-2) var(--space-3);
+}
+
+@media (min-width: 48rem) {
+  .shell__body[data-docked="true"] {
+    grid-template-columns: minmax(0, 1fr) var(--size-sidebar);
+  }
+}

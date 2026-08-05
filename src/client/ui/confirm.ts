@@ -1,7 +1,7 @@
 import { el } from "./dom.ts"
 import { mountOverlay } from "./overlay.ts"
 
-export type ConfirmOptions = {
+type ConfirmOptions = {
   readonly message: string
   readonly confirmLabel?: string
   readonly background: HTMLElement

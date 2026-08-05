@@ -4,6 +4,8 @@ import { isMobile } from "./theme.ts"
 
 type RateLimitBody = { readonly retryAfterSeconds?: number }
 
+const DEFAULT_RETRY_AFTER_SECONDS = 30
+
 /** DESIGN.md 5.11: mono countdown, announced at start and end only. */
 function formatCountdown(seconds: number): string {
   const mins = Math.floor(seconds / 60)
@@ -85,7 +87,7 @@ export function renderLogin(root: HTMLElement, onSuccess: () => void): void {
     if (error instanceof ApiError) {
       if (error.status === 429) {
         const body: RateLimitBody = error.body ?? {}
-        startRateLimit(body.retryAfterSeconds ?? 30)
+        startRateLimit(body.retryAfterSeconds ?? DEFAULT_RETRY_AFTER_SECONDS)
         return
       }
       if (error.status === 401) {

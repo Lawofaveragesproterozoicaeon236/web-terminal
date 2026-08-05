@@ -1,24 +1,36 @@
+import { z } from "zod"
 import { apiRequest } from "../api.ts"
 import { dot, el, replace } from "./dom.ts"
 
-type Workspace = {
-  readonly workspace_id: string
-  readonly number: number
-  readonly label: string
-  readonly focused: boolean
-  readonly pane_count: number
-  readonly tab_count: number
-  readonly agent_status: string
-}
+const workspaceSchema = z
+  .object({
+    workspace_id: z.string(),
+    number: z.number(),
+    label: z.string(),
+    focused: z.boolean(),
+    pane_count: z.number(),
+    tab_count: z.number(),
+    agent_status: z.string(),
+  })
+  .readonly()
 
-type Snapshot = {
-  readonly status: string
-  readonly snapshot?: {
-    readonly version: string
-    readonly workspaces?: readonly Workspace[]
-    readonly agents?: readonly Readonly<Record<string, unknown>>[]
-  }
-}
+const agentSchema = z.record(z.string(), z.unknown()).readonly()
+const snapshotSchema = z
+  .object({
+    status: z.string(),
+    snapshot: z
+      .object({
+        version: z.string(),
+        workspaces: z.array(workspaceSchema).readonly().optional(),
+        agents: z.array(agentSchema).readonly().optional(),
+      })
+      .readonly()
+      .optional(),
+  })
+  .readonly()
+
+type Workspace = z.infer<typeof workspaceSchema>
+type Snapshot = z.infer<typeof snapshotSchema>
 
 export type HerdrPanel = {
   readonly element: HTMLElement
@@ -118,9 +130,12 @@ export function createHerdrPanel(): HerdrPanel {
   }
 
   const poll = (): void => {
-    void apiRequest<Snapshot>("/api/herdr/snapshot")
+    void apiRequest("/api/herdr/snapshot", { schema: snapshotSchema })
       .then(render)
-      .catch(() => showUnavailable())
+      .catch((error: unknown) => {
+        if (!(error instanceof Error)) throw error
+        showUnavailable()
+      })
   }
 
   return {
