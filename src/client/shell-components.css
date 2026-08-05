@@ -162,6 +162,8 @@
 
 /* ---------- Terminal region ---------- */
 .terminal {
+  /* Custom drag scroll: the terminal owns all touch gestures on this region. */
+  touch-action: none;
   min-block-size: 0;
   min-inline-size: 0;
   overflow: hidden;

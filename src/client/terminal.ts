@@ -1,6 +1,8 @@
 import { FitAddon, init, Terminal } from "ghostty-web"
 import { type SessionId, sessionIdSchema } from "../shared/protocol.ts"
 import { type ConnectionState, TerminalConnection } from "./connection.ts"
+import { attachImeInputForwarding } from "./ime-input.ts"
+import { attachTouchScroll } from "./touch-scroll.ts"
 
 type TerminalAppEvents = {
   readonly onState: (state: ConnectionState) => void
@@ -43,6 +45,15 @@ export async function createTerminalApp(
   terminal.open(container)
   fitAddon.fit()
   fitAddon.observeResize()
+  // Focus the hidden textarea, not the container: ghostty's focus() targets the
+  // contenteditable container whose beforeinput is prevented, which silently drops
+  // IME/composed text (Korean). The textarea forwards input correctly.
+  const detachTouchScroll = attachTouchScroll(container, {
+    onTap: () => terminal.textarea?.focus(),
+  })
+  const detachImeForwarding = attachImeInputForwarding(container, (data) =>
+    connection.sendInput(data),
+  )
 
   const connection = new TerminalConnection({
     onOutput: (payload) => terminal.write(payload),
@@ -77,6 +88,8 @@ export async function createTerminalApp(
       connection.switchSession(sessionId)
     },
     dispose: () => {
+      detachImeForwarding()
+      detachTouchScroll()
       connection.close()
       terminal.dispose()
     },
