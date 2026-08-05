@@ -17,7 +17,11 @@ echo $! > .deploy/server.pid
 sleep 1
 
 echo "Starting cloudflared quick tunnel"
-nohup cloudflared tunnel --url "http://127.0.0.1:$PORT" > .deploy/cloudflared.log 2>&1 &
+# Isolate from any global ~/.cloudflared/config.yml so this deploy never adopts (or
+# disturbs) an unrelated named tunnel's credentials and ingress rules.
+mkdir -p .deploy/cloudflared-home
+nohup env HOME="$PWD/.deploy/cloudflared-home" TUNNEL_ORIGIN_CERT="$PWD/.deploy/cloudflared-home/none.pem" \
+  cloudflared tunnel --no-autoupdate --url "http://127.0.0.1:$PORT" > .deploy/cloudflared.log 2>&1 &
 echo $! > .deploy/cloudflared.pid
 
 echo "Waiting for tunnel URL..."

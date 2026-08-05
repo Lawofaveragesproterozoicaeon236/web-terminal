@@ -40,6 +40,8 @@ WT_PASSWORD='choose-a-long-password' bun run start
 | `WT_FILES_ROOT` | `$HOME` | File explorer jail root |
 | `WT_HERDR_SOCKET` | `~/.config/herdr/herdr.sock` | herdr socket path |
 | `WT_ALLOWED_ORIGINS` | *(same-origin)* | Extra allowed origins for WebSocket upgrades |
+| `WT_SHELL` | *(auto)* | Shell for new sessions (defaults to your `$SHELL`, or zsh/bash/sh; never fish, which stalls on VT capability queries) |
+| `WT_DEV` | `0` | `1` enables Bun's dev-mode host guard (local development only) |
 
 ## Deploying with cloudflared
 

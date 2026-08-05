@@ -31,6 +31,9 @@ export async function startServer(env: Readonly<Record<string, string | undefine
   const server = Bun.serve<WsData>({
     port: config.port,
     hostname: config.host,
+    // Dev mode adds a Host-header guard that rejects requests arriving through a
+    // tunnel or reverse proxy. Enable it only when explicitly developing locally.
+    development: env["WT_DEV"] === "1",
     routes: { "/": indexPage },
     async fetch(req, serverInstance): Promise<Response | undefined> {
       const url = new URL(req.url)
