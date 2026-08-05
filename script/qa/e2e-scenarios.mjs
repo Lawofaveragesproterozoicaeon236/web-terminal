@@ -1,8 +1,9 @@
 // Real-surface QA driver: C1 happy path, C2 VT rendering, C3 reconnect repaint, C4 mobile.
 // Usage: node script/qa/e2e-scenarios.mjs --base http://127.0.0.1:7799 --password qa-password-123 --evidence qa-evidence
-import { chromium, devices } from "playwright"
+
 import { mkdirSync } from "node:fs"
 import { join } from "node:path"
+import { chromium, devices } from "playwright"
 
 const arg = (name, fallback) => {
   const index = process.argv.indexOf(`--${name}`)
@@ -121,7 +122,10 @@ const browser = await chromium.launch()
 
 // C4: mobile 375px + touch toolbar Ctrl+C + no horizontal overflow
 {
-  const context = await browser.newContext({ ...devices["iPhone 13"], viewport: { width: 375, height: 812 } })
+  const context = await browser.newContext({
+    ...devices["iPhone 13"],
+    viewport: { width: 375, height: 812 },
+  })
   const page = await context.newPage()
   await login(page)
   await page.waitForTimeout(1500)
