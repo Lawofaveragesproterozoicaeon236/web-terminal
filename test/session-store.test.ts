@@ -100,18 +100,24 @@ describe("SessionStore", () => {
     expect(session.info().alive).toBe(false)
   })
 
-  test("default command prefers WT_SHELL then zsh over $SHELL=fish", () => {
+  test("default command prefers WT_SHELL and never defaults to a blocking fish", () => {
     // fish blocks on terminal capability queries ghostty-web cannot answer (DA/DCS);
-    // the server must default to a shell that produces output immediately.
+    // the server default must produce output immediately (zsh, or an explicit override).
+    const { defaultCommand } = require("../src/server/session-store.ts") as {
+      defaultCommand: () => readonly string[]
+    }
     const savedShell = process.env["SHELL"]
-    process.env["SHELL"] = "/opt/homebrew/bin/fish"
+    const savedOverride = process.env["WT_SHELL"]
     try {
-      const { defaultCommand } = require("../src/server/session-store.ts") as {
-        defaultCommand: () => readonly string[]
-      }
-      const cmd = defaultCommand()
-      expect(cmd[0]).not.toBe("/opt/homebrew/bin/fish")
+      process.env["WT_SHELL"] = "/custom/shell"
+      expect(defaultCommand()[0]).toBe("/custom/shell")
+      delete process.env["WT_SHELL"]
+      process.env["SHELL"] = "/opt/homebrew/bin/fish"
+      const fallback = defaultCommand()[0] ?? ""
+      expect(fallback.endsWith("fish")).toBe(false)
     } finally {
+      if (savedOverride === undefined) delete process.env["WT_SHELL"]
+      else process.env["WT_SHELL"] = savedOverride
       if (savedShell === undefined) delete process.env["SHELL"]
       else process.env["SHELL"] = savedShell
     }
