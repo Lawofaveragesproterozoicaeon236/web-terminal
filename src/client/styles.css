@@ -1,0 +1,47 @@
+:root {
+  --bg: #0b0d12;
+  --fg: #d8dee9;
+}
+* {
+  box-sizing: border-box;
+}
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: system-ui, sans-serif;
+}
+#app {
+  height: 100%;
+}
+.shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+.topbar {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 12px;
+}
+.terminal {
+  flex: 1;
+  min-height: 0;
+}
+.login {
+  display: grid;
+  place-items: center;
+  height: 100%;
+}
+.login-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: min(320px, 90vw);
+}
+.error {
+  color: #ef6b73;
+}

@@ -29,13 +29,11 @@ export const resizeSchema = z.object({
   rows: z.number().int().min(1).max(1000),
 })
 
-export const ackSchema = z.object({ t: z.literal("ack"), offset: z.number().int().nonnegative() })
 export const pingSchema = z.object({ t: z.literal("ping") })
 
 export const clientControlSchema = z.discriminatedUnion("t", [
   clientHelloSchema,
   resizeSchema,
-  ackSchema,
   pingSchema,
 ])
 
@@ -56,7 +54,7 @@ export type OutputFrame = {
 export type InputFrame = { readonly kind: "input"; readonly payload: Uint8Array }
 export type BinaryFrame = OutputFrame | InputFrame
 
-export function encodeOutput(offset: number, payload: Uint8Array): Uint8Array {
+export function encodeOutput(offset: number, payload: Uint8Array): Uint8Array<ArrayBuffer> {
   if (!Number.isSafeInteger(offset) || offset < 0) {
     throw new ProtocolError(`invalid offset: ${offset}`)
   }
@@ -67,7 +65,7 @@ export function encodeOutput(offset: number, payload: Uint8Array): Uint8Array {
   return frame
 }
 
-export function encodeInput(payload: Uint8Array): Uint8Array {
+export function encodeInput(payload: Uint8Array): Uint8Array<ArrayBuffer> {
   const frame = new Uint8Array(1 + payload.length)
   frame[0] = OPCODE.input
   frame.set(payload, 1)
