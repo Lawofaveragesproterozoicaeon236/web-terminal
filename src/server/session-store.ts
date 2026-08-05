@@ -89,7 +89,9 @@ export class TerminalSession {
 
   #enqueue(chunk: Uint8Array): void {
     this.#pending.push(chunk.slice())
-    this.#flushTimer ??= setTimeout(() => this.#flush(), FLUSH_INTERVAL_MS)
+    if (this.#flushTimer === undefined) {
+      this.#flushTimer = setTimeout(() => this.#flush(), FLUSH_INTERVAL_MS)
+    }
   }
 
   #flush(): void {

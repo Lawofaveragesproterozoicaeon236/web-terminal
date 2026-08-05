@@ -24,6 +24,9 @@
       "correctness": {
         "noUnusedVariables": "error",
         "noUnusedImports": "error"
+      },
+      "complexity": {
+        "useLiteralKeys": "off"
       }
     }
   },
@@ -40,6 +43,13 @@
     }
   },
   "files": {
-    "includes": ["**", "!node_modules", "!dist", "!qa-evidence", "!.omo", "!.senpi"]
+    "includes": [
+      "**",
+      "!node_modules",
+      "!dist",
+      "!qa-evidence",
+      "!.omo",
+      "!.senpi"
+    ]
   }
 }
