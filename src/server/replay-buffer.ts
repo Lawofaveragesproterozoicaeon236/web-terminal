@@ -1,4 +1,3 @@
-const ESC = 0x1b
 const NEWLINE = 0x0a
 const UTF8_CONTINUATION_MASK = 0xc0
 const UTF8_CONTINUATION_BYTE = 0x80
