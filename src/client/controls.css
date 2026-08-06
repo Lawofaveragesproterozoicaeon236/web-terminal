@@ -209,4 +209,8 @@
   .btn {
     min-block-size: var(--size-control-touch);
   }
+
+  .btn--icon {
+    min-inline-size: var(--size-tap);
+  }
 }

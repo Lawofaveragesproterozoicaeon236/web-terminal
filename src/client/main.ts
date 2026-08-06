@@ -105,6 +105,9 @@ async function renderApp(): Promise<void> {
   const cellSize = terminalFontSize()
   if (created.terminal.options.fontSize !== cellSize) {
     created.terminal.options.fontSize = cellSize
+    // FitAddon is still completing its initial resize in this task. Re-fit from
+    // the next task so it uses the updated mobile font metrics.
+    setTimeout(() => created.fit(), 0)
   }
 
   // Ctrl/Alt latch: intercept the next real key press before ghostty encodes it.

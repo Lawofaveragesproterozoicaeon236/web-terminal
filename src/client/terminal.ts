@@ -66,6 +66,7 @@ export async function createTerminalApp(
   // IME/composed text (Korean). The textarea forwards input correctly.
   const detachTouchScroll = attachTouchScroll(container, {
     onTap: () => terminal.textarea?.focus(),
+    isMouseTracking: () => terminal.hasMouseTracking(),
   })
   // Load the Nerd Font async (font-display: swap) so first paint is never blocked,
   // then repaint so PUA glyphs upgrade from the fallback once the face is ready.

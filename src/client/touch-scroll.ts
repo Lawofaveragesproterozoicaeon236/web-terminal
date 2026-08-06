@@ -11,6 +11,8 @@ const SCROLL_MULTIPLIER = 2
 
 export type TouchScrollOptions = {
   readonly onTap?: () => void
+  /** Mouse-aware input owns touch gestures while a TUI has tracking enabled. */
+  readonly isMouseTracking?: () => boolean
 }
 
 export function attachTouchScroll(
@@ -37,6 +39,7 @@ export function attachTouchScroll(
     if (!dragging && Math.abs(deltaY) < DRAG_SLOP_PX) return
     dragging = true
     lastY = touch.clientY
+    if (options.isMouseTracking?.() === true) return
     event.preventDefault()
     container.dispatchEvent(
       new WheelEvent("wheel", {

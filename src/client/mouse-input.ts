@@ -102,8 +102,10 @@ export function attachMouseInput(
   // Touch: tap = click at cell; vertical drag = scroll buttons, both only while
   // tracking. (Native touch-scroll continues to own the tracking-off path.)
   let touchStartY: number | undefined
+  let touchMoved = false
   const onTouchStart = (event: TouchEvent): void => {
     touchStartY = event.touches[0]?.clientY
+    touchMoved = false
   }
   const onTouchMove = (event: TouchEvent): void => {
     if (!trackingActive(terminal)) return
@@ -113,6 +115,7 @@ export function attachMouseInput(
     if (now - lastMotionAt < MOTION_THROTTLE_MS) return
     const deltaY = touchStartY - touch.clientY
     if (Math.abs(deltaY) < 12) return
+    touchMoved = true
     lastMotionAt = now
     touchStartY = touch.clientY
     const { col, row } = cellAt(terminal, container, touch.clientX, touch.clientY)
@@ -123,9 +126,8 @@ export function attachMouseInput(
     if (!trackingActive(terminal)) return
     const touch = event.changedTouches[0]
     if (touch === undefined || touchStartY === undefined) return
-    const moved = touchStartY !== undefined && Math.abs(touch.clientY - touchStartY) > 12
     touchStartY = undefined
-    if (moved) return
+    if (touchMoved) return
     const { col, row } = cellAt(terminal, container, touch.clientX, touch.clientY)
     sendInput(encodeMouseClick("left", "press", col, row))
     sendInput(encodeMouseClick("left", "release", col, row))
