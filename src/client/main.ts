@@ -59,6 +59,8 @@ async function renderApp(): Promise<void> {
     background: terminalRegion,
     onDrawerChange: (open) => {
       topBar.setSidebarExpanded(open)
+      // Keep the toggle tappable above the open drawer (see shell-components.css).
+      shell.dataset["drawerOpen"] = open ? "true" : "false"
       // Latches must not survive an overlay opening (DESIGN.md 5.9).
       if (open) toolbar.clearLatches()
     },
@@ -108,6 +110,16 @@ async function renderApp(): Promise<void> {
   // Returning true suppresses the engine's own send, so exactly one byte goes out.
   created.terminal.attachCustomKeyEventHandler((event) => {
     if (event.type !== "keydown") return false
+    // macOS-style shortcuts ghostty-web passes to the WASM encoder, which emits
+    // nothing for SUPER-modified keys. Map them to the control bytes users expect.
+    if (event.metaKey) {
+      const byte = META_KEY_BYTES[event.code]
+      if (byte !== undefined) {
+        created.sendKeys(byte)
+        return true
+      }
+      return false
+    }
     const mods = toolbar.modifiers()
     if (!mods.ctrl && !mods.alt) return false
     if (event.key.length !== 1) return false
@@ -117,6 +129,13 @@ async function renderApp(): Promise<void> {
   })
 
   applyResponsiveLayout(shell, shellBody, toolbar.element, sidebar, created, terminalRegion)
+}
+
+/** macOS Meta-shortcuts that must reach the PTY as control bytes (research: SUPER-modified keys emit nothing by default). */
+const META_KEY_BYTES: Readonly<Record<string, string>> = {
+  Backspace: "\u0015", // Cmd+Delete -> Ctrl+U (kill to start of line)
+  ArrowLeft: "\u0001", // Cmd+Left -> Ctrl+A (start of line)
+  ArrowRight: "\u0005", // Cmd+Right -> Ctrl+E (end of line)
 }
 
 function labelFor(app: TerminalApp | undefined): string {

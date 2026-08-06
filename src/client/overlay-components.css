@@ -16,7 +16,8 @@
 
 .drawer {
   justify-self: end;
-  inline-size: min(var(--size-drawer-max), var(--size-sidebar));
+  /* Leave the top-right toggle reachable: never span the full width. */
+  inline-size: min(var(--size-drawer-max), var(--size-sidebar), calc(100vw - 3.5rem));
   min-inline-size: 0;
   block-size: 100dvh;
   z-index: var(--z-drawer);

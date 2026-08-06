@@ -23,7 +23,8 @@ export type TerminalApp = {
 const SESSION_STORAGE_KEY = "wt:session-id"
 const DEFAULT_FONT_SIZE = 14
 const TERMINAL_SCROLLBACK_LINES = 10_000
-const TERMINAL_FONT_FAMILY = 'ui-monospace, "SF Mono", Menlo, Consolas, monospace'
+// Ghostty built-in default face (embedded JetBrains Mono); system mono fallbacks.
+const TERMINAL_FONT_FAMILY = '"JetBrains Mono", ui-monospace, Menlo, monospace'
 
 export type TerminalTheme = Readonly<Record<string, string>>
 
@@ -35,6 +36,7 @@ export async function createTerminalApp(
   await init()
   const terminal = new Terminal({
     cursorBlink: true,
+    cursorStyle: "block",
     fontSize: DEFAULT_FONT_SIZE,
     fontFamily: TERMINAL_FONT_FAMILY,
     scrollback: TERMINAL_SCROLLBACK_LINES,

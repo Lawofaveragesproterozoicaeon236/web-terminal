@@ -1,44 +1,41 @@
-import type { TerminalTheme } from "../terminal.ts"
+const MOBILE_BREAKPOINT_PX = 768
 
-/**
- * The ghostty-web / xterm ITheme object from DESIGN.md 2.3.
- * This is the fidelity contract: these strings mirror the Section 2.2 terminal
- * tokens in styles.css. Changing one without the other is a defect.
- */
-export const terminalTheme: TerminalTheme = {
-  background: "#050607",
-  foreground: "#D6DAE0",
-  cursor: "#5AB2FF",
-  cursorAccent: "#050607",
-  selectionBackground: "rgba(90, 178, 255, 0.30)",
-  selectionForeground: "#F2F3F5",
-  selectionInactiveBackground: "rgba(255, 255, 255, 0.12)",
-  scrollbarSliderBackground: "rgba(255, 255, 255, 0.14)",
-  scrollbarSliderHoverBackground: "rgba(255, 255, 255, 0.22)",
-  scrollbarSliderActiveBackground: "rgba(255, 255, 255, 0.30)",
-  black: "#15181B",
-  red: "#F4736F",
-  green: "#5FD68A",
-  yellow: "#E7B455",
-  blue: "#6AABF0",
-  magenta: "#C79AF0",
-  cyan: "#5FC9D6",
-  white: "#C3C8CE",
-  brightBlack: "#787F87",
-  brightRed: "#FF9490",
-  brightGreen: "#88E9AA",
-  brightYellow: "#F7CE7A",
-  brightBlue: "#93C6F7",
-  brightMagenta: "#DCBBF8",
-  brightCyan: "#8CDEE8",
-  brightWhite: "#F2F3F5",
+export function isMobile(): boolean {
+  return window.innerWidth < MOBILE_BREAKPOINT_PX
 }
 
-const MOBILE_BREAKPOINT = 768
-const TERMINAL_FONT_SIZE_MOBILE = 13
-const TERMINAL_FONT_SIZE_DESKTOP = 14
+export function terminalFontSize(): number {
+  return isMobile() ? 13 : 14
+}
 
-export const terminalFontSize = (): number =>
-  window.innerWidth < MOBILE_BREAKPOINT ? TERMINAL_FONT_SIZE_MOBILE : TERMINAL_FONT_SIZE_DESKTOP
+/** Mirrors the local Ghostty terminal's built-in defaults (empty config) — bg #282C34, fg #FFFFFF, Tomorrow Night ANSI palette. */
+export const terminalTheme = {
+  background: "#282C34",
+  foreground: "#FFFFFF",
+  cursor: "#FFFFFF",
+  cursorAccent: "#282C34",
+  selectionBackground: "#FFFFFF",
+  selectionForeground: "#282C34",
+  black: "#1D1F21",
+  red: "#CC6666",
+  green: "#B5BD68",
+  yellow: "#F0C674",
+  blue: "#81A2BE",
+  magenta: "#B294BB",
+  cyan: "#8ABEB7",
+  white: "#C5C8C6",
+  brightBlack: "#666666",
+  brightRed: "#D54E53",
+  brightGreen: "#B9CA4A",
+  brightYellow: "#E7C547",
+  brightBlue: "#7AA6DA",
+  brightMagenta: "#C397D8",
+  brightCyan: "#70C0B1",
+  brightWhite: "#EAEAEA",
+} as const
 
-export const isMobile = (): boolean => window.innerWidth < MOBILE_BREAKPOINT
+/** Ghostty built-in default face/size/cursor. */
+export const GHOSTTY_FONT_FAMILY = '"JetBrains Mono", ui-monospace, Menlo, monospace'
+export const GHOSTTY_FONT_SIZE_PX = 13
+export const GHOSTTY_CURSOR_STYLE = "block" as const
+export const GHOSTTY_CURSOR_BLINK = true

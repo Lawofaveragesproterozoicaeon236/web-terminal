@@ -13,6 +13,13 @@
   z-index: var(--z-sticky);
 }
 
+/* While the drawer is open the toggle must stay tappable: lift the top bar above
+   the scrim/drawer so it is not swallowed by the overlay stack (drawer close bug). */
+.shell[data-drawer-open="true"] .topbar {
+  position: relative;
+  z-index: calc(var(--z-drawer) + 1);
+}
+
 .topbar__brand {
   color: var(--text-secondary);
   font-size: var(--text-caption);
