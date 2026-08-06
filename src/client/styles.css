@@ -47,8 +47,8 @@
   --status-neutral: #80858d;
 
   /* DESIGN.md 2.2 - terminal surface tokens */
-  --term-bg: #050607;
-  --term-fg: #d6dae0;
+  --term-bg: #282c34; /* matches terminalTheme.background (Ghostty default) */
+  --term-fg: #ffffff; /* matches terminalTheme.foreground */
   --term-cursor: #5ab2ff;
   --term-scrollbar: rgba(255, 255, 255, 0.14);
 

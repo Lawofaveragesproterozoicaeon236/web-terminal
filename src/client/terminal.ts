@@ -70,10 +70,14 @@ export async function createTerminalApp(
   })
   // Load the Nerd Font async (font-display: swap) so first paint is never blocked,
   // then repaint so PUA glyphs upgrade from the fallback once the face is ready.
-  void document.fonts
-    .load('14px "SymbolsNerdFontMono"')
-    .then(() => terminal.write("\u001b[0J"))
-    .catch(() => undefined)
+  // The initial fit can run before stylesheets apply (wrong container width) and
+  // before the webfont swaps in (wrong cell metrics). Refit after first paint and
+  // again when every font is ready; both are no-ops when the size already matches.
+  requestAnimationFrame(() => fitAddon.fit())
+  // ghostty-web's fit() drops calls made within 50ms of a resize (_isResizing
+  // lock), which eats the early load-time refits. The final, correct-metrics fit
+  // must land after the font swap AND past the lock window.
+  void document.fonts.ready.then(() => setTimeout(() => fitAddon.fit(), 120)).catch(() => undefined)
   const detachImeForwarding = attachImeInputForwarding(container, (data) =>
     connection.sendInput(data),
   )
