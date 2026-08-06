@@ -22,6 +22,10 @@ export type TerminalApp = {
 }
 
 const SESSION_STORAGE_KEY = "wt:session-id"
+// Native Ghostty computes cell height from the font's vertical metrics
+// (ascent+descent+lineGap over em). JetBrains Mono's is 1.32em; ghostty-web's
+// "M"-bounding-box heuristic (~1.14em) renders noticeably tighter.
+const GHOSTTY_LINE_HEIGHT_RATIO = 1.32
 const DEFAULT_FONT_SIZE = 14
 const TERMINAL_SCROLLBACK_LINES = 10_000
 // Ghostty built-in default face (embedded JetBrains Mono); system mono fallbacks.
@@ -29,6 +33,17 @@ const TERMINAL_FONT_FAMILY =
   '"JetBrainsMonoNerdFont", "JetBrains Mono", "SymbolsNerdFontMono", ui-monospace, Menlo, monospace'
 
 export type TerminalTheme = Readonly<Record<string, string>>
+
+function applyGhosttyLineHeight(terminal: Terminal): void {
+  const renderer: unknown = Reflect.get(terminal, "renderer")
+  if (typeof renderer !== "object" || renderer === null) return
+  const metrics: unknown = Reflect.get(renderer, "metrics")
+  if (typeof metrics !== "object" || metrics === null) return
+  const height: unknown = Reflect.get(metrics, "height")
+  if (typeof height !== "number") return
+  const target = Math.round(terminal.options.fontSize * GHOSTTY_LINE_HEIGHT_RATIO)
+  if (target !== height) Reflect.set(metrics, "height", target)
+}
 
 async function preloadTerminalFont(): Promise<void> {
   try {
@@ -59,7 +74,12 @@ export async function createTerminalApp(
   const fitAddon = new FitAddon()
   terminal.loadAddon(fitAddon)
   terminal.open(container)
-  fitAddon.fit()
+
+  const fit = (): void => {
+    applyGhosttyLineHeight(terminal)
+    fitAddon.fit()
+  }
+  fit()
   fitAddon.observeResize()
   // Focus the hidden textarea, not the container: ghostty's focus() targets the
   // contenteditable container whose beforeinput is prevented, which silently drops
@@ -73,7 +93,7 @@ export async function createTerminalApp(
   // The initial fit can run before stylesheets apply (wrong container width) and
   // before the webfont swaps in (wrong cell metrics). Refit after first paint and
   // again when every font is ready; both are no-ops when the size already matches.
-  requestAnimationFrame(() => fitAddon.fit())
+  requestAnimationFrame(fit)
   // ghostty-web's fit() drops calls made within 50ms of a resize (_isResizing
   // lock), which eats the early load-time refits. The final, correct-metrics fit
   // must land after the font swap AND past the lock window.
@@ -111,7 +131,7 @@ export async function createTerminalApp(
   return {
     terminal,
     connection,
-    fit: () => fitAddon.fit(),
+    fit,
     sendKeys: (data) => connection.sendInput(data),
     switchSession: (sessionId) => {
       terminal.write("\u001b[2J\u001b[H")
