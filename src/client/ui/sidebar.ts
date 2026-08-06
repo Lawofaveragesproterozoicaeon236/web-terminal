@@ -13,6 +13,8 @@ type Sidebar = {
   readonly closeDrawer: (afterClose?: () => void) => void
   readonly isDrawerOpen: () => boolean
   readonly relayout: () => void
+  /** Collapse/expand the docked panel (desktop); opens/closes the drawer (mobile). */
+  readonly toggle: () => void
 }
 
 type SidebarActions = {
@@ -28,6 +30,7 @@ export function createSidebar(actions: SidebarActions): Sidebar {
   let active: SidebarTab = "files"
   let overlay: Overlay | undefined
   let afterDrawerClose: (() => void) | undefined
+  let dockedVisible = true
 
   const tabs = new Map<SidebarTab, HTMLButtonElement>()
 
@@ -150,11 +153,24 @@ export function createSidebar(actions: SidebarActions): Sidebar {
   /** Move the shared strip/panel between the drawer and the docked host. */
   function relayout(): void {
     if (overlay !== undefined) return
-    if (isMobile()) {
+    if (isMobile() || !dockedVisible) {
       replace(dockedHost, [])
+      dockedHost.setAttribute("hidden", "")
       return
     }
+    dockedHost.removeAttribute("hidden")
     replace(dockedHost, [header(false), strip, panelHost])
+  }
+
+  function toggle(): void {
+    if (isMobile()) {
+      if (overlay !== undefined) closeDrawer()
+      else openDrawer()
+      return
+    }
+    dockedVisible = !dockedVisible
+    relayout()
+    actions.onDrawerChange(false)
   }
 
   select("files")
@@ -166,5 +182,6 @@ export function createSidebar(actions: SidebarActions): Sidebar {
     closeDrawer,
     isDrawerOpen: () => overlay !== undefined,
     relayout,
+    toggle,
   }
 }

@@ -251,3 +251,12 @@
     grid-template-columns: minmax(0, 1fr) var(--size-sidebar);
   }
 }
+
+/* Collapsed docked panel: the grid track collapses with the host. */
+.sidebar[hidden] {
+  display: none;
+}
+
+.shell__body[data-docked="false"] {
+  grid-template-columns: minmax(0, 1fr);
+}

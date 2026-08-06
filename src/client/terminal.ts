@@ -2,6 +2,7 @@ import { FitAddon, init, Terminal } from "ghostty-web"
 import { type SessionId, sessionIdSchema } from "../shared/protocol.ts"
 import { type ConnectionState, TerminalConnection } from "./connection.ts"
 import { attachImeInputForwarding } from "./ime-input.ts"
+import { attachMouseInput } from "./mouse-input.ts"
 import { attachTouchScroll } from "./touch-scroll.ts"
 
 type TerminalAppEvents = {
@@ -24,9 +25,21 @@ const SESSION_STORAGE_KEY = "wt:session-id"
 const DEFAULT_FONT_SIZE = 14
 const TERMINAL_SCROLLBACK_LINES = 10_000
 // Ghostty built-in default face (embedded JetBrains Mono); system mono fallbacks.
-const TERMINAL_FONT_FAMILY = '"JetBrains Mono", ui-monospace, Menlo, monospace'
+const TERMINAL_FONT_FAMILY =
+  '"JetBrainsMonoNerdFont", "JetBrains Mono", "SymbolsNerdFontMono", ui-monospace, Menlo, monospace'
 
 export type TerminalTheme = Readonly<Record<string, string>>
+
+async function preloadTerminalFont(): Promise<void> {
+  try {
+    await Promise.race([
+      document.fonts.load('14px "JetBrainsMonoNerdFont"'),
+      new Promise((resolvePromise) => setTimeout(resolvePromise, 1500)),
+    ])
+  } catch {
+    // font stays on the system fallback; terminal still works
+  }
+}
 
 export async function createTerminalApp(
   container: HTMLElement,
@@ -34,6 +47,7 @@ export async function createTerminalApp(
   events: TerminalAppEvents,
 ): Promise<TerminalApp> {
   await init()
+  await preloadTerminalFont()
   const terminal = new Terminal({
     cursorBlink: true,
     cursorStyle: "block",
@@ -53,7 +67,16 @@ export async function createTerminalApp(
   const detachTouchScroll = attachTouchScroll(container, {
     onTap: () => terminal.textarea?.focus(),
   })
+  // Load the Nerd Font async (font-display: swap) so first paint is never blocked,
+  // then repaint so PUA glyphs upgrade from the fallback once the face is ready.
+  void document.fonts
+    .load('14px "SymbolsNerdFontMono"')
+    .then(() => terminal.write("\u001b[0J"))
+    .catch(() => undefined)
   const detachImeForwarding = attachImeInputForwarding(container, (data) =>
+    connection.sendInput(data),
+  )
+  const detachMouseInput = attachMouseInput(container, terminal, (data) =>
     connection.sendInput(data),
   )
 
@@ -90,6 +113,7 @@ export async function createTerminalApp(
       connection.switchSession(sessionId)
     },
     dispose: () => {
+      detachMouseInput()
       detachImeForwarding()
       detachTouchScroll()
       connection.close()

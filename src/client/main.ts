@@ -24,8 +24,9 @@ async function renderApp(): Promise<void> {
 
   const topBar = createTopBar({
     onToggleSidebar: () => {
-      if (sidebar.isDrawerOpen()) sidebar.closeDrawer()
-      else sidebar.openDrawer()
+      sidebar.toggle()
+      shellBody.dataset["docked"] =
+        isMobile() || sidebar.element.childElementCount > 0 ? "true" : "false"
     },
     onOpenSessions: () =>
       openSessionPicker({

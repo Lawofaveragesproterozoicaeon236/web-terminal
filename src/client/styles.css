@@ -1,3 +1,16 @@
+@font-face {
+  font-family: "JetBrainsMonoNerdFont";
+  src: url("./fonts/JetBrainsMonoNerdFont-Regular.woff2") format("woff2");
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "SymbolsNerdFontMono";
+  src: url("./fonts/SymbolsNerdFontMono.woff2") format("woff2");
+  font-display: swap;
+  unicode-range: U+E000-EFFF, U+F000-F8FF, U+F0000-FFFFD, U+100000-10FFFD;
+}
+
 /*
  * web-terminal token system. Transcribed from DESIGN.md sections 2-7.
  * Raw values are forbidden outside this token block (DESIGN.md preamble).
