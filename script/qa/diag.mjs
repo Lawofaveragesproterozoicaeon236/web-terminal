@@ -61,7 +61,7 @@ const results = {}
     const lines = []
     for (let y = 0; y < b.length; y++) {
       const s = b.getLine(y)?.translateToString(true)
-      if (s && s.trim()) lines.push(s.trim())
+      if (s?.trim()) lines.push(s.trim())
     }
     return lines.slice(-4)
   })
@@ -81,7 +81,7 @@ const results = {}
     const lines = []
     for (let y = 0; y < b.length; y++) {
       const s = b.getLine(y)?.translateToString(true)
-      if (s && s.trim()) lines.push(s.trim())
+      if (s?.trim()) lines.push(s.trim())
     }
     return lines.slice(-3)
   })
