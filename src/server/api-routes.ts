@@ -152,11 +152,12 @@ export async function handleApi(
   req: Request,
   server: Server<unknown>,
   ctx: ApiContext,
+  trusted = false,
 ): Promise<Response | undefined> {
   const url = new URL(req.url)
   if (!url.pathname.startsWith("/api/")) return undefined
   if (url.pathname === "/api/login" && req.method === "POST") return handleLogin(req, server, ctx)
-  const denied = requireAuth(req, ctx.auth)
+  const denied = requireAuth(req, ctx.auth, trusted)
   if (denied !== undefined) return denied
   if (url.pathname === "/api/logout" && req.method === "POST") {
     const token = readCookie(req, SESSION_COOKIE)

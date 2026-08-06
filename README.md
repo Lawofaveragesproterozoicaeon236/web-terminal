@@ -40,6 +40,8 @@ WT_PASSWORD='choose-a-long-password' bun run start
 | `WT_FILES_ROOT` | `$HOME` | File explorer jail root |
 | `WT_HERDR_SOCKET` | `~/.config/herdr/herdr.sock` | herdr socket path |
 | `WT_ALLOWED_ORIGINS` | *(same-origin)* | Extra allowed origins for WebSocket upgrades |
+| `WT_TRUSTED_BIND` | *(unset)* | Extra listener address that skips the password (e.g. a Tailscale IP). Unset = single password-protected listener |
+| `WT_TRUSTED_PORT` | `WT_PORT` | Port for the trusted listener |
 | `WT_SHELL` | *(auto)* | Shell for new sessions (defaults to your `$SHELL`, or zsh/bash/sh; never fish, which stalls on VT capability queries) |
 | `WT_DEV` | `0` | `1` enables Bun's dev-mode host guard (local development only) |
 
@@ -62,6 +64,26 @@ For a tailnet instead, bind to your tailscale interface: `WT_HOST=0.0.0.0 bun ru
 - **Rate limiting** — 5 failed logins per 5 minutes per IP (honors `CF-Connecting-IP` behind Cloudflare), then `429` + `Retry-After`.
 - **WebSocket** — upgrades require a valid session cookie and a same-origin `Origin` header.
 - **File jail** — every path is resolved inside `WT_FILES_ROOT`; `..` traversal, absolute paths, and symlink escapes are rejected with real-path checks.
+
+### Two surfaces: public password, tailnet passwordless
+
+`WT_TRUSTED_BIND` starts a **second listener** on an address only your private
+network can reach (a Tailscale interface IP). Requests accepted on that socket are
+pre-authenticated; requests on the public listener always need the password:
+
+```bash
+WT_PASSWORD='...' WT_PORT=7820 WT_HOST=127.0.0.1 \
+  WT_TRUSTED_BIND=100.x.y.z WT_TRUSTED_PORT=7820 bun run start
+```
+
+The bypass is a property of **which socket accepted the connection**, never of a
+request header. `CF-Connecting-IP`, `X-Forwarded-For` and friends are settable by
+anyone once traffic arrives through a public tunnel, so they are ignored for trust
+decisions — reaching the tailnet socket is itself the proof of membership, and that
+socket is unroutable from the internet. The bypass is off unless `WT_TRUSTED_BIND`
+is set, so a misconfigured deploy fails closed to password auth.
+
+Point cloudflared at the **loopback** listener only, never at the trusted one.
 
 One password guards a real shell on your machine: run it behind cloudflared/Tailscale, use a long password, and never expose it as plain HTTP on an untrusted network.
 

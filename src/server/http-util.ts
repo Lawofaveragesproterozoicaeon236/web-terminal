@@ -40,7 +40,13 @@ export function sessionCookieHeader(token: string, secure: boolean, maxAgeSecond
   return `${SESSION_COOKIE}=${token}; ${flags.join("; ")}`
 }
 
-export function requireAuth(req: Request, auth: Auth): Response | undefined {
+/**
+ * `trusted` MUST originate from the listener that accepted the connection
+ * (a Tailscale-only bind), never from a request header: every proxy header is
+ * attacker-settable once traffic arrives through a public tunnel.
+ */
+export function requireAuth(req: Request, auth: Auth, trusted = false): Response | undefined {
+  if (trusted) return undefined
   const token = readCookie(req, SESSION_COOKIE)
   if (!auth.validate(token)) return json({ error: "unauthorized" }, 401)
   return undefined
