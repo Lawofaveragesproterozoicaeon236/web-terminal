@@ -24,9 +24,20 @@ export function attachImeInputForwarding(
     lastCompositionEndAt = Date.now()
   }
   const onBeforeInput = (event: InputEvent): void => {
-    if (event.inputType !== "insertText" || event.data === null || event.data === "") return
     if (composing) return
     if (Date.now() - lastCompositionEndAt < COMPOSITION_DEDUP_MS) return
+    // iOS Korean (and held backspace) arrives as beforeinput deletes with no
+    // keydown: each jamo update is deleteContentBackward + reinsert. Swallowing
+    // the delete leaves every intermediate jamo on screen.
+    if (event.inputType === "deleteContentBackward") {
+      sendInput("\u007f")
+      return
+    }
+    if (event.inputType === "insertLineBreak") {
+      sendInput("\r")
+      return
+    }
+    if (event.inputType !== "insertText" || event.data === null || event.data === "") return
     sendInput(event.data)
   }
 
