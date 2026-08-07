@@ -11,6 +11,7 @@ type TerminalAppEvents = {
   readonly onLatency: (ms: number) => void
   readonly onTitle: (title: string) => void
   readonly onSession: (sessionId: SessionId) => void
+  readonly onExit: (code: number) => void
 }
 
 export type TerminalApp = {
@@ -132,14 +133,34 @@ export async function createTerminalApp(
     onReset: () => terminal.write("\u001b[2J\u001b[H"),
     onState: events.onState,
     onLatency: events.onLatency,
-    onExit: (code) => terminal.write(`\r\n\u001b[90m[session exited: ${code}]\u001b[0m\r\n`),
+    onExit: (code) => {
+      // The PTY is gone: keep resuming this id and every reconnect re-attaches to
+      // a corpse that accepts no input, which reads as a frozen terminal.
+      localStorage.removeItem(SESSION_STORAGE_KEY)
+      terminal.write(
+        `\r\n\u001b[90m[session exited: ${code}] press Enter to start a new session\u001b[0m\r\n`,
+      )
+      exited = true
+      events.onExit(code)
+    },
     onSession: (sessionId) => {
       localStorage.setItem(SESSION_STORAGE_KEY, sessionId)
       events.onSession(sessionId)
     },
   })
 
-  terminal.onData((data) => connection.sendInput(data))
+  let exited = false
+  terminal.onData((data) => {
+    if (!exited) {
+      connection.sendInput(data)
+      return
+    }
+    // A dead session swallows input server-side; Enter is the documented way back.
+    if (!data.includes("\r") && !data.includes("\n")) return
+    exited = false
+    terminal.write("\u001b[2J\u001b[H")
+    connection.switchSession(undefined)
+  })
   terminal.onResize(({ cols, rows }) => connection.sendResize(cols, rows))
   terminal.onTitleChange(events.onTitle)
   window.addEventListener("resize", () => fitAddon.fit())

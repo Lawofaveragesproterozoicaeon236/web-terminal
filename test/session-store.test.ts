@@ -135,4 +135,23 @@ describe("SessionStore", () => {
     expect(code).toBe(3)
     expect(session.info().alive).toBe(false)
   })
+
+  test("resuming an exited session is refused so a reconnect cannot attach to a corpse", async () => {
+    store = new SessionStore()
+    const session = store.create({ command: ["/bin/sh", "-c", "exit 0"], cols: 80, rows: 24 })
+    await waitForExit(session)
+    expect(store.getLive(session.id)).toBeUndefined()
+    expect(store.get(session.id)).toBe(session)
+  })
+
+  test("reaping drops exited sessions from the list", async () => {
+    store = new SessionStore()
+    const dead = store.create({ command: ["/bin/sh", "-c", "exit 0"], cols: 80, rows: 24 })
+    const alive = store.create({ command: ["/bin/sh"], cols: 80, rows: 24 })
+    await waitForExit(dead)
+    store.reapExited()
+    const ids = store.list().map((info) => info.id)
+    expect(ids).not.toContain(dead.id)
+    expect(ids).toContain(alive.id)
+  })
 })

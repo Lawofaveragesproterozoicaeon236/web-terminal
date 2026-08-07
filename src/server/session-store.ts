@@ -152,6 +152,23 @@ export class SessionStore {
     return this.#sessions.get(id)
   }
 
+  /**
+   * Resume lookup. A client that reconnects with the id of an exited session
+   * must get a fresh shell instead of re-attaching to a dead PTY, which accepts
+   * no input and produces no output — the terminal would look frozen.
+   */
+  getLive(id: SessionId): TerminalSession | undefined {
+    const session = this.#sessions.get(id)
+    if (session === undefined) return undefined
+    return session.info().alive ? session : undefined
+  }
+
+  reapExited(): void {
+    for (const [id, session] of this.#sessions) {
+      if (!session.info().alive) this.#sessions.delete(id)
+    }
+  }
+
   list(): readonly SessionInfo[] {
     return [...this.#sessions.values()].map((session) => session.info())
   }

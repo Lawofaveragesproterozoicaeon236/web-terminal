@@ -107,6 +107,13 @@ async function renderApp(): Promise<void> {
       topBar.setSessionLabel(title === "" ? labelFor(terminalApp) : title)
     },
     onSession: () => topBar.setSessionLabel(labelFor(terminalApp)),
+    onExit: (code) =>
+      toaster.show(
+        code === 0
+          ? "Session ended. Press Enter for a new one."
+          : `Session exited (${code}). Press Enter for a new one.`,
+        code === 0 ? "info" : "warning",
+      ),
   })
   terminalApp = created
 

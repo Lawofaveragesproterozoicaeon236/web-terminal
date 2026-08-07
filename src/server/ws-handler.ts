@@ -41,7 +41,9 @@ function handleHello(
   store: SessionStore,
   hello: Extract<ClientControl, { readonly t: "hello" }>,
 ): void {
-  const existing = hello.sessionId === undefined ? undefined : store.get(hello.sessionId)
+  // Exited sessions are never resumed; reaping first keeps the picker honest.
+  store.reapExited()
+  const existing = hello.sessionId === undefined ? undefined : store.getLive(hello.sessionId)
   const session = existing ?? store.create({ cols: hello.cols, rows: hello.rows })
   attachSession(ws, session)
   session.resize(hello.cols, hello.rows)
