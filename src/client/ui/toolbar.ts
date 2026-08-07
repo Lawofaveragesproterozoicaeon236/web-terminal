@@ -6,9 +6,10 @@ import {
   REPEAT_DELAY_MS,
   REPEAT_INTERVAL_MS,
   REPEATING,
+  SHIFTED_SENDS,
 } from "./toolbar-keys.ts"
 
-type ModifierState = { readonly ctrl: boolean; readonly alt: boolean }
+type ModifierState = { readonly ctrl: boolean; readonly alt: boolean; readonly shift: boolean }
 
 type Toolbar = {
   readonly element: HTMLElement
@@ -44,6 +45,7 @@ export function createToolbar(actions: ToolbarActions): Toolbar {
   const latches = new Map<ModifierId, LatchLevel>([
     ["ctrl", "off"],
     ["alt", "off"],
+    ["shift", "off"],
   ])
   const caps = new Map<string, HTMLButtonElement>()
   let keyNodes: readonly HTMLButtonElement[] = []
@@ -51,6 +53,7 @@ export function createToolbar(actions: ToolbarActions): Toolbar {
   const state = (): ModifierState => ({
     ctrl: latches.get("ctrl") !== "off",
     alt: latches.get("alt") !== "off",
+    shift: latches.get("shift") !== "off",
   })
 
   const paint = (): void => {
@@ -67,7 +70,9 @@ export function createToolbar(actions: ToolbarActions): Toolbar {
       hint.textContent = ""
     } else {
       hint.hidden = false
-      const names = active.map(([id]) => (id === "ctrl" ? "Ctrl" : "Alt")).join(" + ")
+      const names = active
+        .map(([id]) => (id === "ctrl" ? "Ctrl" : id === "alt" ? "Alt" : "Shift"))
+        .join(" + ")
       hint.textContent = `${names} armed — press a key`
     }
     actions.onLatchChange(state())
@@ -159,6 +164,15 @@ export function createToolbar(actions: ToolbarActions): Toolbar {
     cap.addEventListener("pointerdown", (event) => {
       event.preventDefault()
       if (cap.disabled) return
+      // Capture the pointer so a drifting held finger keeps repeating and the
+      // release is delivered even off-cap; without it, pointerleave killed the
+      // repeat after a few px of drift. Synthetic/inactive pointers throw here,
+      // and proceeding uncaptured is the correct degraded behavior.
+      try {
+        cap.setPointerCapture(event.pointerId)
+      } catch {
+        // no active pointer to capture (synthetic events, stale id)
+      }
       cap.dataset["pressed"] = "true"
       fire(def)
       actions.focusTerminal()
@@ -168,7 +182,7 @@ export function createToolbar(actions: ToolbarActions): Toolbar {
         repeatTimer = setInterval(() => actions.sendKeys(send), REPEAT_INTERVAL_MS)
       }, REPEAT_DELAY_MS)
     })
-    for (const done of ["pointerup", "pointercancel", "pointerleave"]) {
+    for (const done of ["pointerup", "pointercancel"]) {
       cap.addEventListener(done, stopRepeat)
     }
     // Keyboard activation path (pointerdown never fires for Enter/Space).
@@ -220,9 +234,14 @@ export function createToolbar(actions: ToolbarActions): Toolbar {
   return { element, modifiers: state, clearLatches }
 }
 
-/** Ctrl maps a-z to its control byte; Alt prefixes ESC (DESIGN.md 5.9). */
+/** Shift remaps Tab/arrows (BackTab, CSI 1;2) or uppercases; Ctrl maps a-z to its control byte; Alt prefixes ESC (DESIGN.md 5.9). */
 export function applyLatches(data: string, mods: ModifierState): string {
   let out = data
+  if (mods.shift) {
+    const shifted = SHIFTED_SENDS[out]
+    if (shifted !== undefined) out = shifted
+    else if (out.length === 1) out = out.toUpperCase()
+  }
   if (mods.ctrl && out.length === 1) {
     const code = out.toLowerCase().charCodeAt(0)
     if (code >= LOWERCASE_A_CODE && code <= LOWERCASE_Z_CODE) {

@@ -14,6 +14,7 @@ type KeyDef = {
 export const KEYS = [
   { id: "esc", label: "Esc", kind: "default", send: "\u001b" },
   { id: "tab", label: "Tab", kind: "default", send: "\t" },
+  { id: "shift", label: "⇧", kind: "modifier", ariaLabel: "Shift" },
   { id: "ctrl", label: "Ctrl", kind: "modifier" },
   { id: "alt", label: "Alt", kind: "modifier" },
   {
@@ -57,7 +58,16 @@ export const KEYS = [
 ] as const satisfies readonly KeyDef[]
 
 type KeyId = (typeof KEYS)[number]["id"]
-export type ModifierId = Extract<KeyId, "ctrl" | "alt">
+export type ModifierId = Extract<KeyId, "ctrl" | "alt" | "shift">
+
+/** Shift variants of keybar sends: BackTab and xterm modifyOtherKeys-style CSI 1;2 arrows. */
+export const SHIFTED_SENDS: Readonly<Record<string, string>> = {
+  "\t": "\u001b[Z",
+  "\u001b[A": "\u001b[1;2A",
+  "\u001b[B": "\u001b[1;2B",
+  "\u001b[C": "\u001b[1;2C",
+  "\u001b[D": "\u001b[1;2D",
+}
 
 export const REPEATING: ReadonlySet<KeyId> = new Set(["up", "down", "left", "right", "ctrl-c"])
 export const REPEAT_DELAY_MS = 400
