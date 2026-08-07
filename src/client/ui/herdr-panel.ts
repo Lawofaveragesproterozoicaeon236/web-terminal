@@ -1,48 +1,14 @@
-import { z } from "zod"
-import { apiRequest } from "../api.ts"
+import type { HerdrState, HerdrStore, Snapshot, Workspace } from "../herdr-store.ts"
 import { dot, el, replace } from "./dom.ts"
-
-const workspaceSchema = z
-  .object({
-    workspace_id: z.string(),
-    number: z.number(),
-    label: z.string(),
-    focused: z.boolean(),
-    pane_count: z.number(),
-    tab_count: z.number(),
-    agent_status: z.string(),
-  })
-  .readonly()
-
-const agentSchema = z.record(z.string(), z.unknown()).readonly()
-const snapshotSchema = z
-  .object({
-    status: z.string(),
-    snapshot: z
-      .object({
-        version: z.string(),
-        workspaces: z.array(workspaceSchema).readonly().optional(),
-        agents: z.array(agentSchema).readonly().optional(),
-      })
-      .readonly()
-      .optional(),
-  })
-  .readonly()
-
-type Workspace = z.infer<typeof workspaceSchema>
-type Snapshot = z.infer<typeof snapshotSchema>
 
 export type HerdrPanel = {
   readonly element: HTMLElement
-  /** Polling runs only while the tab is visible (task + DESIGN.md 6.2). */
   readonly setVisible: (visible: boolean) => void
   readonly dispose: () => void
 }
 
-const POLL_MS = 5000
-
 /** Map herdr's free-form agent_status onto the four DESIGN.md 5.5 dot states. */
-function statusState(status: string): string {
+export function statusState(status: string): string {
   const value = status.toLowerCase()
   if (value.includes("run") || value.includes("active") || value.includes("busy")) {
     return "connected"
@@ -90,68 +56,76 @@ function sectionHeading(text: string): HTMLElement {
   return el("div", { class: "panel" }, [el("h3", { class: "sidebar__title" }, [text])])
 }
 
-export function createHerdrPanel(): HerdrPanel {
+function emptyState(title: string, hint: string): HTMLElement {
+  return el("div", { class: "empty" }, [
+    el("p", { class: "empty__title" }, [title]),
+    el("p", { class: "empty__hint" }, [hint]),
+  ])
+}
+
+function snapshotNodes(data: Snapshot): readonly HTMLElement[] {
+  const workspaces = data.snapshot?.workspaces ?? []
+  const agents = data.snapshot?.agents ?? []
+  if (workspaces.length === 0 && agents.length === 0) {
+    return [emptyState("No active workspaces.", "Agents will appear here when they start.")]
+  }
+  const nodes: HTMLElement[] = []
+  if (workspaces.length > 0) {
+    nodes.push(sectionHeading("Workspaces"))
+    nodes.push(el("ul", { class: "list" }, workspaces.map(workspaceRow)))
+  }
+  if (agents.length > 0) {
+    nodes.push(sectionHeading("Agents"))
+    nodes.push(el("ul", { class: "list" }, agents.map(agentRow)))
+  }
+  return nodes
+}
+
+function stateNodes(state: HerdrState): readonly HTMLElement[] {
+  switch (state.status) {
+    case "connecting":
+      return [emptyState("Connecting to herdr…", "Reading workspaces and agents.")]
+    case "unavailable":
+      return [
+        emptyState("herdr is unavailable.", "Start the herdr server to see workspaces and agents."),
+      ]
+    case "connected":
+      return state.snapshot === undefined ? [] : snapshotNodes(state.snapshot)
+  }
+}
+
+export function createHerdrPanel(store: HerdrStore): HerdrPanel {
   const body = el("div", { class: "scroll-body" })
   const element = el("div", { class: "stack" }, [body])
-  let timer: ReturnType<typeof setInterval> | undefined
   let visible = false
+  let pending: HerdrState | undefined
 
-  const showUnavailable = (): void => {
-    replace(body, [
-      el("div", { class: "empty" }, [
-        el("p", { class: "empty__title" }, ["herdr is unavailable."]),
-        el("p", { class: "empty__hint" }, ["Start the herdr server to see workspaces and agents."]),
-      ]),
-    ])
+  const paint = (state: HerdrState): void => {
+    replace(body, stateNodes(state))
   }
 
-  const render = (data: Snapshot): void => {
-    const workspaces = data.snapshot?.workspaces ?? []
-    const agents = data.snapshot?.agents ?? []
-    if (workspaces.length === 0 && agents.length === 0) {
-      replace(body, [
-        el("div", { class: "empty" }, [
-          el("p", { class: "empty__title" }, ["No active workspaces."]),
-          el("p", { class: "empty__hint" }, ["Agents will appear here when they start."]),
-        ]),
-      ])
+  const unsubscribe = store.subscribe((state) => {
+    // Hidden panels stay in the store but skip DOM work; the latest state is
+    // replayed on reveal so the panel never shows a stale frame.
+    if (!visible) {
+      pending = state
       return
     }
-    const nodes: HTMLElement[] = []
-    if (workspaces.length > 0) {
-      nodes.push(sectionHeading("Workspaces"))
-      nodes.push(el("ul", { class: "list" }, workspaces.map(workspaceRow)))
-    }
-    if (agents.length > 0) {
-      nodes.push(sectionHeading("Agents"))
-      nodes.push(el("ul", { class: "list" }, agents.map(agentRow)))
-    }
-    replace(body, nodes)
-  }
-
-  const poll = (): void => {
-    void apiRequest("/api/herdr/snapshot", { schema: snapshotSchema })
-      .then(render)
-      .catch((error: unknown) => {
-        if (!(error instanceof Error)) throw error
-        showUnavailable()
-      })
-  }
+    paint(state)
+  })
 
   return {
     element,
     setVisible: (next) => {
       if (next === visible) return
       visible = next
-      if (timer !== undefined) clearInterval(timer)
-      timer = undefined
-      if (!visible) return
-      poll()
-      timer = setInterval(poll, POLL_MS)
+      store.setPanelVisible(next)
+      if (!next) return
+      if (pending !== undefined) {
+        paint(pending)
+        pending = undefined
+      }
     },
-    dispose: () => {
-      if (timer !== undefined) clearInterval(timer)
-      timer = undefined
-    },
+    dispose: unsubscribe,
   }
 }

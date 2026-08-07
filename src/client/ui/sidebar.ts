@@ -20,6 +20,8 @@ type Sidebar = {
 type SidebarActions = {
   readonly files: FilesPanel
   readonly herdr: HerdrPanel
+  /** Live herdr connection dot; the sidebar places it but never updates it. */
+  readonly herdrIndicator: HTMLElement
   /** Terminal region; receives `inert` while the drawer is open. */
   readonly background: HTMLElement
   readonly onDrawerChange: (open: boolean) => void
@@ -60,7 +62,7 @@ export function createSidebar(actions: SidebarActions): Sidebar {
         "aria-controls": "sidebar-panel",
         tabindex: id === active ? "0" : "-1",
       },
-      [label],
+      id === "herdr" ? [label, actions.herdrIndicator] : [label],
       () => select(id),
     )
     tabs.set(id, node)

@@ -2,6 +2,7 @@ import { FitAddon, init, Terminal } from "ghostty-web"
 import { type SessionId, sessionIdSchema } from "../shared/protocol.ts"
 import { type ConnectionState, TerminalConnection } from "./connection.ts"
 import { attachImeInputForwarding } from "./ime-input.ts"
+import { attachImePreedit } from "./ime-preedit.ts"
 import { attachMouseInput } from "./mouse-input.ts"
 import { attachTouchScroll } from "./touch-scroll.ts"
 
@@ -101,6 +102,7 @@ export async function createTerminalApp(
   const detachImeForwarding = attachImeInputForwarding(container, (data) =>
     connection.sendInput(data),
   )
+  const detachImePreedit = attachImePreedit(container, terminal)
   const detachMouseInput = attachMouseInput(container, terminal, (data) =>
     connection.sendInput(data),
   )
@@ -139,6 +141,7 @@ export async function createTerminalApp(
     },
     dispose: () => {
       detachMouseInput()
+      detachImePreedit()
       detachImeForwarding()
       detachTouchScroll()
       connection.close()

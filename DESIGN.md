@@ -132,7 +132,7 @@ Exact object to pass as the terminal's `theme` option. Key names match the xterm
 - Surface hierarchy is built from tonal steps plus hairline borders. No shadows for structure (see Section 7).
 - `--accent-primary` is used **only** for interactive affordance: focus, active tab, primary action, cursor. Never decorative, never a background wash on a large region.
 - One accent for the whole app (`taste-skill.md` Color Consistency Lock). There is no second accent hue.
-- Status colors are used **only** where they encode real machine state - connection status, save state, errors. Per `taste-skill.md` Section 9.F, decorative status dots are banned; the session dot and the herdr agent dot survive that ban because they report actual server state, and they are the only dots in the app.
+- Status colors are used **only** where they encode real machine state - connection status, save state, errors. Per `taste-skill.md` Section 9.F, decorative status dots are banned; the session dot, the herdr agent dot, and the herdr tab connection dot survive that ban because they report actual server state, and they are the only dots in the app. The herdr tab dot is fed by a background store that polls `/api/herdr/snapshot` from app start (5s while the panel is visible, 30s while hidden, paused while the document is hidden, backing off 5s to 60s while herdr is unavailable), so herdr connection state is live without the user opening the panel.
 - ANSI tokens are consumed exclusively by the terminal theme object and the session-picker's per-session color echo. They never style chrome.
 - Never introduce a color absent from these tables. Extend the table first.
 

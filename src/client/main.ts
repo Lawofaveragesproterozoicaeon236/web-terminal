@@ -1,8 +1,9 @@
 import { SESSION_ID_PREVIEW_LENGTH } from "../shared/protocol.ts"
 import { checkAuthed } from "./api.ts"
+import { createHerdrStore, type HerdrState } from "./herdr-store.ts"
 import { createTerminalApp, type TerminalApp } from "./terminal.ts"
 import { openConfirm } from "./ui/confirm.ts"
-import { el } from "./ui/dom.ts"
+import { dot, el } from "./ui/dom.ts"
 import { openEditor } from "./ui/editor.ts"
 import { createFilesPanel } from "./ui/files-panel.ts"
 import { createHerdrPanel } from "./ui/herdr-panel.ts"
@@ -52,11 +53,24 @@ async function renderApp(): Promise<void> {
     },
     onConfirm: (message, onYes) => openConfirm({ message, background: shell, onConfirm: onYes }),
   })
-  const herdrPanel = createHerdrPanel()
+  const herdrStore = createHerdrStore()
+  const herdrPanel = createHerdrPanel(herdrStore)
+  const herdrIndicator = dot("idle", "herdr status")
+  herdrStore.subscribe((state: HerdrState) => {
+    const label = state.status === "connected" ? "herdr connected" : `herdr ${state.status}`
+    herdrIndicator.dataset["state"] =
+      state.status === "connected"
+        ? "connected"
+        : state.status === "connecting"
+          ? "reconnecting"
+          : "offline"
+    herdrIndicator.setAttribute("aria-label", label)
+  })
 
   const sidebar = createSidebar({
     files: filesPanel,
     herdr: herdrPanel,
+    herdrIndicator,
     background: terminalRegion,
     onDrawerChange: (open) => {
       topBar.setSidebarExpanded(open)

@@ -168,9 +168,24 @@
 }
 
 /* ---------- Terminal region ---------- */
+.term-preedit {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  z-index: 1;
+  pointer-events: none;
+  white-space: pre;
+  font-family: var(--font-mono);
+  color: var(--term-fg);
+  background: var(--term-bg);
+  text-decoration: underline;
+}
+
 .terminal {
   /* Custom drag scroll: the terminal owns all touch gestures on this region. */
   touch-action: none;
+  /* Anchors the IME preedit overlay and ghostty's input textarea to this region. */
+  position: relative;
   min-block-size: 0;
   min-inline-size: 0;
   overflow: hidden;
