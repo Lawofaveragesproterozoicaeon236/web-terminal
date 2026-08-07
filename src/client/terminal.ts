@@ -4,6 +4,7 @@ import { type ConnectionState, TerminalConnection } from "./connection.ts"
 import { attachImeInputForwarding } from "./ime-input.ts"
 import { attachImePreedit } from "./ime-preedit.ts"
 import { attachMouseInput } from "./mouse-input.ts"
+import { attachPinchZoom } from "./pinch-zoom.ts"
 import { attachTouchScroll } from "./touch-scroll.ts"
 
 type TerminalAppEvents = {
@@ -124,6 +125,13 @@ export async function createTerminalApp(
     connection.sendInput(data),
   )
   const detachImePreedit = attachImePreedit(container, terminal)
+  const detachPinchZoom = attachPinchZoom(container, {
+    getFontSize: () => terminal.options.fontSize,
+    setFontSize: (size) => {
+      terminal.options.fontSize = size
+      fit()
+    },
+  })
   const detachMouseInput = attachMouseInput(container, terminal, (data) =>
     connection.sendInput(data),
   )
@@ -182,6 +190,7 @@ export async function createTerminalApp(
     },
     dispose: () => {
       detachMouseInput()
+      detachPinchZoom()
       detachImePreedit()
       detachImeForwarding()
       detachTouchScroll()
