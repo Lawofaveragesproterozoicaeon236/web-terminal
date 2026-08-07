@@ -43,6 +43,10 @@ function startMockHerdr(socketPath: string): MockServer {
             socket.write(`${JSON.stringify({ id: request.id, ...body })}\n`)
           }
           if (request.method === "ping") respond({ result: { type: "pong" } })
+          else if (request.method === "workspace.focus")
+            respond({
+              result: { type: "workspace_info", workspace: { workspace_id: "w9" } },
+            })
           else if (request.method === "session.snapshot") respond({ result: SNAPSHOT_RESULT })
           else respond({ error: { code: "unknown_method", message: request.method } })
         }
@@ -84,6 +88,14 @@ describe("HerdrClient", () => {
     const snapshot = await client.snapshot()
     expect(snapshot.snapshot.version).toBe("0.8.0")
     expect(snapshot.snapshot.workspaces[0]?.label).toBe("web-terminal")
+  })
+
+  test("focusWorkspace round-trips workspace.focus over the socket", async () => {
+    dir = await mkdtemp(join(tmpdir(), "wt-herdr-"))
+    const sock = join(dir, "herdr.sock")
+    mock = startMockHerdr(sock)
+    const client = new HerdrClient({ socketPath: sock })
+    await expect(client.focusWorkspace("w9")).resolves.toBeUndefined()
   })
 
   test("remote error surfaces as HerdrError", async () => {

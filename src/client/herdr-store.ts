@@ -41,8 +41,11 @@ export type HerdrStore = {
   /** Fires immediately with the current state, then on every change. */
   readonly subscribe: (listener: (state: HerdrState) => void) => () => void
   readonly setPanelVisible: (visible: boolean) => void
+  readonly focusWorkspace: (workspaceId: string) => void
   readonly dispose: () => void
 }
+
+const focusResponseSchema = z.object({ ok: z.boolean() }).readonly()
 
 const POLL_VISIBLE_MS = 5_000
 const POLL_HIDDEN_MS = 30_000
@@ -113,6 +116,22 @@ export function createHerdrStore(): HerdrStore {
       return () => {
         listeners.delete(listener)
       }
+    },
+    focusWorkspace: (workspaceId) => {
+      void apiRequest("/api/herdr/focus", {
+        schema: focusResponseSchema,
+        init: {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ workspaceId }),
+        },
+      })
+        .catch((error: unknown) => {
+          if (!(error instanceof Error)) throw error
+        })
+        // Refresh regardless of outcome: success shows the new focus, failure
+        // repaints the state that actually holds.
+        .finally(poll)
     },
     setPanelVisible: (visible) => {
       if (visible === panelVisible) return

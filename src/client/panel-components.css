@@ -13,6 +13,25 @@
   border-block-end: var(--size-hairline) solid var(--border-subtle);
 }
 
+.row--action {
+  inline-size: 100%;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  text-align: start;
+}
+
+.row--action:hover {
+  background: var(--accent-muted);
+}
+
+.row--action[aria-current="true"] {
+  cursor: default;
+  background: var(--accent-muted);
+}
+
 .row {
   display: flex;
   align-items: center;

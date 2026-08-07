@@ -106,6 +106,55 @@ async function run() {
     await page.close()
   }
 
+  // ---- H3: clicking a panel workspace row focuses that herdr workspace ----
+  {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 800 } })
+    const snapshotOf = () =>
+      page.evaluate(async () => {
+        const res = await fetch("/api/herdr/snapshot")
+        const data = await res.json()
+        const workspaces = data.snapshot?.workspaces ?? []
+        return workspaces.map((w) => ({ id: w.workspace_id, focused: w.focused }))
+      })
+    await login(page)
+    await page.waitForSelector('[data-workspace]', { timeout: 10000 })
+    const before = await snapshotOf()
+    const original = before.find((w) => w.focused)
+    const target = before.find((w) => !w.focused)
+    if (original === undefined || target === undefined) {
+      record("H3 workspace row click focuses workspace", false, "need 2+ workspaces to test")
+    } else {
+      await page.click(`[data-workspace="${target.id}"]`)
+      await page.waitForFunction(
+        async (id) => {
+          const res = await fetch("/api/herdr/snapshot")
+          const data = await res.json()
+          return (data.snapshot?.workspaces ?? []).find((w) => w.workspace_id === id)?.focused === true
+        },
+        target.id,
+        { timeout: 8000, polling: 500 },
+      )
+      // Restore the user's original focus through the same surface being tested.
+      await page.waitForSelector(`[data-workspace="${original.id}"]`, { timeout: 8000 })
+      await page.click(`[data-workspace="${original.id}"]`)
+      await page.waitForFunction(
+        async (id) => {
+          const res = await fetch("/api/herdr/snapshot")
+          const data = await res.json()
+          return (data.snapshot?.workspaces ?? []).find((w) => w.workspace_id === id)?.focused === true
+        },
+        original.id,
+        { timeout: 8000, polling: 500 },
+      )
+      record(
+        "H3 workspace row click focuses workspace",
+        true,
+        `focused ${original.id} -> ${target.id} -> restored ${original.id}`,
+      )
+    }
+    await page.close()
+  }
+
   // ---- I1/I2/I3: inline preedit at the cursor ----
   for (const profile of ["desktop", "mobile"]) {
     const context =

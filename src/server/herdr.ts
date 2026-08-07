@@ -91,6 +91,10 @@ export class HerdrClient {
     }
   }
 
+  async focusWorkspace(workspaceId: string): Promise<void> {
+    await this.request("workspace.focus", { workspace_id: workspaceId })
+  }
+
   async snapshot(): Promise<HerdrSnapshot> {
     const result = await this.request("session.snapshot", {})
     const parsed = herdrSnapshotSchema.safeParse(result)

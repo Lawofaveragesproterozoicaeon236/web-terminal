@@ -20,6 +20,7 @@ import type { SessionStore } from "./session-store.ts"
 
 const SESSION_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 7
 const loginSchema = z.object({ password: z.string().min(1).max(1024) }).readonly()
+const focusWorkspaceSchema = z.object({ workspaceId: z.string().min(1).max(64) }).readonly()
 const createSessionSchema = z
   .object({
     title: z.string().min(1).max(64).optional(),
@@ -117,6 +118,19 @@ async function handleFiles(req: Request, url: URL, ctx: ApiContext): Promise<Res
   }
 }
 
+async function handleHerdrFocus(req: Request, ctx: ApiContext): Promise<Response> {
+  const body = focusWorkspaceSchema.safeParse(await readJson(req))
+  if (!body.success) return json({ error: "invalid-body" }, 400)
+  try {
+    await ctx.herdr.ensureRunning()
+    await ctx.herdr.focusWorkspace(body.data.workspaceId)
+    return json({ ok: true })
+  } catch (error) {
+    if (error instanceof HerdrError) return json({ status: "unavailable", reason: error.code }, 503)
+    throw error
+  }
+}
+
 async function handleHerdrSnapshot(ctx: ApiContext): Promise<Response> {
   try {
     await ctx.herdr.ensureRunning()
@@ -169,6 +183,9 @@ export async function handleApi(
   if (url.pathname === "/api/me") return json({ ok: true })
   if (url.pathname.startsWith("/api/files")) return handleFiles(req, url, ctx)
   if (url.pathname === "/api/herdr/snapshot") return handleHerdrSnapshot(ctx)
+  if (url.pathname === "/api/herdr/focus" && req.method === "POST") {
+    return handleHerdrFocus(req, ctx)
+  }
   if (url.pathname === "/api/sessions") return handleSessions(req, url, ctx)
   return json({ error: "not-found" }, 404)
 }
