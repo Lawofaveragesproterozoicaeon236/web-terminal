@@ -20,6 +20,8 @@ export type TerminalApp = {
   readonly connection: TerminalConnection
   readonly fit: () => void
   readonly sendKeys: (data: string) => void
+  /** Bracketed-paste aware: wraps in ESC[200~..201~ when the app armed mode 2004. */
+  readonly paste: (text: string) => void
   readonly switchSession: (sessionId: SessionId | undefined) => void
   readonly dispose: () => void
 }
@@ -107,8 +109,26 @@ export async function createTerminalApp(
   // Focus the hidden textarea, not the container: ghostty's focus() targets the
   // contenteditable container whose beforeinput is prevented, which silently drops
   // IME/composed text (Korean). The textarea forwards input correctly.
+  // Long-press selection rides ghostty's native mouse selection: synthesizing
+  // mouse events on the canvas reuses its SelectionManager AND its
+  // copy-on-select clipboard write at mouseup.
+  const selectionMouse = (type: string, x: number, y: number): void => {
+    const canvas = terminal.renderer?.getCanvas()
+    if (canvas === undefined) return
+    canvas.dispatchEvent(new MouseEvent(type, { clientX: x, clientY: y, button: 0, bubbles: true }))
+  }
+  let selectionAt: readonly [number, number] = [0, 0]
   const detachTouchScroll = attachTouchScroll(container, {
     onTap: () => terminal.textarea?.focus(),
+    onSelectStart: (x, y) => {
+      selectionAt = [x, y]
+      selectionMouse("mousedown", x, y)
+    },
+    onSelectMove: (x, y) => {
+      selectionAt = [x, y]
+      selectionMouse("mousemove", x, y)
+    },
+    onSelectEnd: () => selectionMouse("mouseup", selectionAt[0], selectionAt[1]),
     isMouseTracking: () => terminal.hasMouseTracking(),
   })
   // Load the Nerd Font async (font-display: swap) so first paint is never blocked,
@@ -184,6 +204,7 @@ export async function createTerminalApp(
     connection,
     fit,
     sendKeys: (data) => connection.sendInput(data),
+    paste: (text) => terminal.paste(text),
     switchSession: (sessionId) => {
       terminal.write("\u001b[2J\u001b[H")
       connection.switchSession(sessionId)

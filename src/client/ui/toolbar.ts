@@ -21,6 +21,7 @@ type Toolbar = {
 
 type ToolbarActions = {
   readonly sendKeys: (data: string) => void
+  readonly paste: (text: string) => void
   readonly focusTerminal: () => void
   readonly onError: (message: string) => void
   readonly onLatchChange: (state: ModifierState) => void
@@ -107,7 +108,7 @@ export function createToolbar(actions: ToolbarActions): Toolbar {
     void navigator.clipboard
       .readText()
       .then((text) => {
-        if (text !== "") actions.sendKeys(text)
+        if (text !== "") actions.paste(text)
       })
       .catch((error: unknown) => {
         if (!(error instanceof Error)) throw error

@@ -260,6 +260,174 @@ async function run() {
     await context.close()
   }
 
+  // ---- P1: toolbar paste is bracketed-paste aware ----
+  {
+    const context = await browser.newContext({
+      ...devices["iPhone 13"],
+      viewport: { width: 375, height: 812 },
+      hasTouch: true,
+      permissions: ["clipboard-read", "clipboard-write"],
+    })
+    const page = await context.newPage()
+    await page.goto(base)
+    await page.fill("#password", password)
+    await page.click("button[type=submit]")
+    await page.waitForSelector(".terminal canvas", { timeout: 15000 })
+    await page.waitForTimeout(2000)
+    await armSendSpy(page)
+    await page.evaluate(async () => {
+      // Simulate a full-screen app arming bracketed paste, then a keybar paste.
+      globalThis.__wt.terminal.write("\u001b[?2004h")
+      await navigator.clipboard.writeText("line1\nline2")
+      globalThis.__sent.length = 0
+      const cap = document.querySelector('[data-key="paste"]')
+      const rect = cap.getBoundingClientRect()
+      const opts = {
+        pointerId: 5,
+        pointerType: "touch",
+        isPrimary: true,
+        bubbles: true,
+        cancelable: true,
+        clientX: rect.x + rect.width / 2,
+        clientY: rect.y + rect.height / 2,
+      }
+      cap.dispatchEvent(new PointerEvent("pointerdown", opts))
+      cap.dispatchEvent(new PointerEvent("pointerup", opts))
+      await new Promise((resolvePromise) => setTimeout(resolvePromise, 400))
+    })
+    const sent = await page.evaluate(() => globalThis.__sent.join(""))
+    const pass = sent === "\u001b[200~line1\nline2\u001b[201~"
+    record(
+      "P1 keybar paste wraps in bracketed paste",
+      pass,
+      `pty received ${JSON.stringify(sent)} (want ESC[200~..ESC[201~ wrapping)`,
+    )
+    await context.close()
+  }
+
+  // ---- P2: desktop copy-on-select puts the selection on the clipboard ----
+  {
+    const context = await browser.newContext({
+      viewport: { width: 1280, height: 800 },
+      permissions: ["clipboard-read", "clipboard-write"],
+    })
+    const page = await context.newPage()
+    await page.goto(base)
+    await page.fill("#password", password)
+    await page.click("button[type=submit]")
+    await page.waitForSelector(".terminal canvas", { timeout: 15000 })
+    await page.waitForTimeout(2000)
+    await page.click(".terminal")
+    await page.keyboard.type("echo copy-target-42")
+    await page.keyboard.press("Enter")
+    await page.waitForTimeout(1200)
+    await page.evaluate(() => navigator.clipboard.writeText(""))
+    const found = await page.evaluate(async () => {
+      const canvas = document.querySelector(".terminal canvas")
+      const t = globalThis.__wt.terminal
+      const metrics = t.renderer.getMetrics()
+      const rect = canvas.getBoundingClientRect()
+      // Find the row that echoed the marker so the drag has a real target.
+      const buffer = t.buffer.active
+      let row = -1
+      for (let y = 0; y < buffer.length; y++) {
+        const text = buffer.getLine(y)?.translateToString(true) ?? ""
+        if (text.startsWith("copy-target-42")) row = y
+      }
+      if (row === -1) return { row: -1 }
+      const viewportRow = row - t.viewportY
+      const y = rect.y + (viewportRow + 0.5) * metrics.height
+      const x0 = rect.x + 0.2 * metrics.width
+      const x1 = rect.x + 13.8 * metrics.width
+      const fire = (type, x) =>
+        canvas.dispatchEvent(
+          new MouseEvent(type, { clientX: x, clientY: y, button: 0, bubbles: true }),
+        )
+      fire("mousedown", x0)
+      for (let step = 1; step <= 6; step++) fire("mousemove", x0 + ((x1 - x0) * step) / 6)
+      fire("mouseup", x1)
+      await new Promise((resolvePromise) => setTimeout(resolvePromise, 300))
+      return { row, selection: t.getSelection(), clip: await navigator.clipboard.readText() }
+    })
+    const pass = found.row !== -1 && (found.clip ?? "").includes("copy-target-42")
+    record(
+      "P2 desktop copy-on-select reaches the clipboard",
+      pass,
+      `row=${found.row} selection=${JSON.stringify(found.selection)} clipboard=${JSON.stringify(found.clip)}`,
+    )
+    await context.close()
+  }
+
+  // ---- P3: mobile long-press drag selects and copies ----
+  {
+    const context = await browser.newContext({
+      ...devices["iPhone 13"],
+      viewport: { width: 375, height: 812 },
+      hasTouch: true,
+      permissions: ["clipboard-read", "clipboard-write"],
+    })
+    const page = await context.newPage()
+    await page.goto(base)
+    await page.fill("#password", password)
+    await page.click("button[type=submit]")
+    await page.waitForSelector(".terminal canvas", { timeout: 15000 })
+    await page.waitForTimeout(2000)
+    await page.evaluate(() => globalThis.__wt.terminal.textarea?.focus())
+    await page.evaluate(() => {
+      globalThis.__wt.connection.sendInput("echo grab-me-7\r")
+    })
+    await page.waitForTimeout(1200)
+    await page.evaluate(() => navigator.clipboard.writeText(""))
+    const result = await page.evaluate(async () => {
+      const container = document.querySelector(".terminal")
+      const canvas = container.querySelector("canvas")
+      const t = globalThis.__wt.terminal
+      const metrics = t.renderer.getMetrics()
+      const rect = canvas.getBoundingClientRect()
+      const buffer = t.buffer.active
+      let row = -1
+      for (let y = 0; y < buffer.length; y++) {
+        const text = buffer.getLine(y)?.translateToString(true) ?? ""
+        if (text.startsWith("grab-me-7")) row = y
+      }
+      if (row === -1) return { row: -1 }
+      const viewportRow = row - t.viewportY
+      const y = rect.y + (viewportRow + 0.5) * metrics.height
+      const x0 = rect.x + 0.2 * metrics.width
+      const x1 = rect.x + 8.8 * metrics.width
+      const mk = (x) => new Touch({ identifier: 9, target: container, clientX: x, clientY: y })
+      const fire = (type, touches) =>
+        container.dispatchEvent(
+          new TouchEvent(type, {
+            touches,
+            changedTouches: touches.length > 0 ? touches : [mk(x1)],
+            bubbles: true,
+            cancelable: true,
+          }),
+        )
+      const scrollBefore = t.viewportY
+      fire("touchstart", [mk(x0)])
+      // Long-press dwell: no movement until the selection timer arms.
+      await new Promise((resolvePromise) => setTimeout(resolvePromise, 550))
+      for (let step = 1; step <= 6; step++) fire("touchmove", [mk(x0 + ((x1 - x0) * step) / 6)])
+      fire("touchend", [])
+      await new Promise((resolvePromise) => setTimeout(resolvePromise, 400))
+      return {
+        row,
+        selection: t.getSelection(),
+        clip: await navigator.clipboard.readText(),
+        scrolled: t.viewportY !== scrollBefore,
+      }
+    })
+    const pass = result.row !== -1 && (result.clip ?? "").includes("grab-me-7") && !result.scrolled
+    record(
+      "P3 long-press drag selects and copies on mobile",
+      pass,
+      `row=${result.row} selection=${JSON.stringify(result.selection)} clipboard=${JSON.stringify(result.clip)} scrolled=${result.scrolled}`,
+    )
+    await context.close()
+  }
+
   await browser.close()
   const passed = results.filter((r) => r.pass).length
   console.log(`\n${passed}/${results.length} scenarios passed`)
