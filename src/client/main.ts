@@ -197,7 +197,25 @@ function applyResponsiveLayout(
     requestAnimationFrame(() => terminalApp.fit())
   })
   // The toolbar rides the on-screen keyboard's top edge (DESIGN.md 4.5).
-  window.visualViewport?.addEventListener("resize", () => terminalApp.fit())
+  // 100dvh ignores the iOS keyboard (it overlays the layout viewport), so the
+  // shell must be sized from visualViewport, the only signal that shrinks.
+  const viewport = window.visualViewport
+  if (viewport !== null && viewport !== undefined) {
+    const rideKeyboard = (): void => {
+      const keyboardUp = viewport.height < window.innerHeight - 1
+      if (keyboardUp) {
+        shell.style.blockSize = `${viewport.height}px`
+        shell.style.transform = viewport.offsetTop > 0 ? `translateY(${viewport.offsetTop}px)` : ""
+        window.scrollTo(0, 0)
+      } else {
+        shell.style.blockSize = ""
+        shell.style.transform = ""
+      }
+      terminalApp.fit()
+    }
+    viewport.addEventListener("resize", rideKeyboard)
+    viewport.addEventListener("scroll", rideKeyboard)
+  }
 }
 
 async function boot(): Promise<void> {
