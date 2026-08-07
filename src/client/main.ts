@@ -84,6 +84,10 @@ async function renderApp(): Promise<void> {
   const toolbar = createToolbar({
     sendKeys: (data) => terminalApp?.sendKeys(data),
     paste: (text) => terminalApp?.paste(text),
+    hideKeyboard: () => {
+      const active = document.activeElement
+      if (active instanceof HTMLElement) active.blur()
+    },
     focusTerminal: () => terminalApp?.terminal.focus(),
     onError: (message) => toaster.show(message, "error"),
     onLatchChange: () => undefined,

@@ -55,6 +55,7 @@ export const KEYS = [
   { id: "dash", label: "-", kind: "default", send: "-" },
   { id: "ctrl-c", label: "^C", kind: "combo", send: "\u0003" },
   { id: "paste", label: "\u2318V", kind: "action", ariaLabel: "Paste from clipboard" },
+  { id: "kbd-hide", label: "\u2328\u25be", kind: "action", ariaLabel: "Hide keyboard" },
 ] as const satisfies readonly KeyDef[]
 
 type KeyId = (typeof KEYS)[number]["id"]

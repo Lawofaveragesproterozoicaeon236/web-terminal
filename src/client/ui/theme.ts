@@ -5,6 +5,8 @@ export function isMobile(): boolean {
 }
 
 export function terminalFontSize(): number {
+  const stored = Number(localStorage.getItem("wt:font-size"))
+  if (Number.isFinite(stored) && stored >= 8 && stored <= 24) return stored
   return isMobile() ? 14 : 16
 }
 

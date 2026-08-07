@@ -22,6 +22,7 @@ type Toolbar = {
 type ToolbarActions = {
   readonly sendKeys: (data: string) => void
   readonly paste: (text: string) => void
+  readonly hideKeyboard: () => void
   readonly focusTerminal: () => void
   readonly onError: (message: string) => void
   readonly onLatchChange: (state: ModifierState) => void
@@ -122,6 +123,10 @@ export function createToolbar(actions: ToolbarActions): Toolbar {
         cycleLatch(def.id)
         return
       case "action":
+        if (def.id === "kbd-hide") {
+          actions.hideKeyboard()
+          return
+        }
         pasteFromClipboard()
         return
       case "default":
@@ -145,7 +150,7 @@ export function createToolbar(actions: ToolbarActions): Toolbar {
     })
     if ("icon" in def) cap.appendChild(icon(def.icon))
     else cap.textContent = def.label
-    if (def.kind === "action" && navigator.clipboard === undefined) {
+    if (def.kind === "action" && def.id === "paste" && navigator.clipboard === undefined) {
       cap.disabled = true
       cap.setAttribute("aria-disabled", "true")
     }

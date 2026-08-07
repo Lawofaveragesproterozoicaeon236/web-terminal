@@ -428,6 +428,74 @@ async function run() {
     await context.close()
   }
 
+  // ---- K1: pinch-zoomed font size survives reload (Termius behavior) ----
+  {
+    const { context, page } = await newMobilePage(browser)
+    const pinched = await page.evaluate(async () => {
+      const container = document.querySelector(".terminal")
+      const mk = (id, x, y) => new Touch({ identifier: id, target: container, clientX: x, clientY: y })
+      container.dispatchEvent(new TouchEvent("touchstart", { touches: [mk(1, 150, 350), mk(2, 230, 350)], bubbles: true, cancelable: true }))
+      container.dispatchEvent(new TouchEvent("touchmove", { touches: [mk(1, 110, 350), mk(2, 270, 350)], bubbles: true, cancelable: true }))
+      container.dispatchEvent(new TouchEvent("touchend", { touches: [], bubbles: true, cancelable: true }))
+      await new Promise((r) => setTimeout(r, 300))
+      return globalThis.__wt.terminal.options.fontSize
+    })
+    await page.reload()
+    // The auth cookie survives reload: land directly on the app, log in only if asked.
+    await page.waitForSelector(".terminal canvas, #password", { timeout: 15000 })
+    if ((await page.locator("#password").count()) > 0) {
+      await page.fill("#password", password)
+      await page.click("button[type=submit]")
+      await page.waitForSelector(".terminal canvas", { timeout: 15000 })
+    }
+    await page.waitForTimeout(2000)
+    const restored = await page.evaluate(() => globalThis.__wt.terminal.options.fontSize)
+    record(
+      "K1 pinched font size persists across reload",
+      pinched > 14 && restored === pinched,
+      `pinched=${pinched} afterReload=${restored}`,
+    )
+    await context.close()
+  }
+
+  // ---- K2: keybar has a keyboard-dismiss control that blurs the input ----
+  {
+    const { context, page } = await newMobilePage(browser)
+    await page.evaluate(() => globalThis.__wt.terminal.textarea?.focus())
+    const focusedBefore = await page.evaluate(
+      () => document.activeElement === document.querySelector(".terminal textarea"),
+    )
+    const tap = (key) =>
+      page.evaluate((id) => {
+        const cap = document.querySelector(`[data-key="${id}"]`)
+        if (cap === null) return false
+        const rect = cap.getBoundingClientRect()
+        const opts = {
+          pointerId: 4,
+          pointerType: "touch",
+          isPrimary: true,
+          bubbles: true,
+          cancelable: true,
+          clientX: rect.x + rect.width / 2,
+          clientY: rect.y + rect.height / 2,
+        }
+        cap.dispatchEvent(new PointerEvent("pointerdown", opts))
+        cap.dispatchEvent(new PointerEvent("pointerup", opts))
+        return true
+      }, key)
+    const exists = await tap("kbd-hide")
+    await page.waitForTimeout(300)
+    const blurredAfter = await page.evaluate(
+      () => document.activeElement !== document.querySelector(".terminal textarea"),
+    )
+    record(
+      "K2 keybar hides the virtual keyboard on demand",
+      exists && focusedBefore && blurredAfter,
+      `hide key exists=${exists} focusedBefore=${focusedBefore} blurredAfter=${blurredAfter}`,
+    )
+    await context.close()
+  }
+
   await browser.close()
   const passed = results.filter((r) => r.pass).length
   console.log(`\n${passed}/${results.length} scenarios passed`)
