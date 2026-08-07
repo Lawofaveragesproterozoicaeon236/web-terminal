@@ -25,31 +25,51 @@ export type TerminalApp = {
 const SESSION_STORAGE_KEY = "wt:session-id"
 // Native Ghostty computes cell height from the font's vertical metrics
 // (ascent+descent+lineGap over em). JetBrains Mono's is 1.32em; ghostty-web's
-// "M"-bounding-box heuristic (~1.14em) renders noticeably tighter.
-const GHOSTTY_LINE_HEIGHT_RATIO = 1.32
-const DEFAULT_FONT_SIZE = 14
+// "M"-bounding-box heuristic (~1.14em) renders noticeably tighter. GeistMono's
+// own vertical metrics are 1.20em; the local config's adjust-cell-height = 10%
+// scales that the same way Ghostty applies the percentage.
+const GHOSTTY_LINE_HEIGHT_RATIO = 1.2 * 1.1
+const DEFAULT_FONT_SIZE = 16
 const TERMINAL_SCROLLBACK_LINES = 10_000
-// Ghostty built-in default face (embedded JetBrains Mono); system mono fallbacks.
+// Mirrors the local Ghostty config: GeistMono Nerd Font Mono, with Nerd symbols
+// and IBM Plex Sans KR for the Hangul font-codepoint-map ranges.
 const TERMINAL_FONT_FAMILY =
-  '"JetBrainsMonoNerdFont", "JetBrains Mono", "SymbolsNerdFontMono", ui-monospace, Menlo, monospace'
+  '"GeistMono", "IBMPlexSansKR", "SymbolsNerdFontMono", ui-monospace, Menlo, monospace'
 
 export type TerminalTheme = Readonly<Record<string, string>>
 
-function applyGhosttyLineHeight(terminal: Terminal): void {
+function measureAdvance(fontSize: number): number | undefined {
+  const context = document.createElement("canvas").getContext("2d")
+  if (context === null) return undefined
+  context.font = `${fontSize}px ${TERMINAL_FONT_FAMILY}`
+  const advance = context.measureText("M").width
+  return advance > 0 ? advance : undefined
+}
+
+function applyGhosttyCellMetrics(terminal: Terminal): void {
   const renderer: unknown = Reflect.get(terminal, "renderer")
   if (typeof renderer !== "object" || renderer === null) return
   const metrics: unknown = Reflect.get(renderer, "metrics")
   if (typeof metrics !== "object" || metrics === null) return
   const height: unknown = Reflect.get(metrics, "height")
-  if (typeof height !== "number") return
-  const target = Math.round(terminal.options.fontSize * GHOSTTY_LINE_HEIGHT_RATIO)
-  if (target !== height) Reflect.set(metrics, "height", target)
+  const width: unknown = Reflect.get(metrics, "width")
+  if (typeof height !== "number" || typeof width !== "number") return
+  const fontSize = terminal.options.fontSize
+  const targetHeight = Math.round(fontSize * GHOSTTY_LINE_HEIGHT_RATIO)
+  if (targetHeight !== height) Reflect.set(metrics, "height", targetHeight)
+  // ghostty-web ceils the cell to a whole pixel while glyphs advance at the
+  // font's true width, so every column drifts off the pixel grid and blurs.
+  const advance = measureAdvance(fontSize)
+  if (advance !== undefined && advance !== width) Reflect.set(metrics, "width", advance)
 }
 
 async function preloadTerminalFont(): Promise<void> {
   try {
     await Promise.race([
-      document.fonts.load('14px "JetBrainsMonoNerdFont"'),
+      Promise.all([
+        document.fonts.load(`${DEFAULT_FONT_SIZE}px "GeistMono"`),
+        document.fonts.load(`${DEFAULT_FONT_SIZE}px "IBMPlexSansKR"`, "한"),
+      ]),
       new Promise((resolvePromise) => setTimeout(resolvePromise, 1500)),
     ])
   } catch {
@@ -77,7 +97,7 @@ export async function createTerminalApp(
   terminal.open(container)
 
   const fit = (): void => {
-    applyGhosttyLineHeight(terminal)
+    applyGhosttyCellMetrics(terminal)
     fitAddon.fit()
   }
   fit()

@@ -5,37 +5,37 @@ export function isMobile(): boolean {
 }
 
 export function terminalFontSize(): number {
-  return isMobile() ? 13 : 14
+  return isMobile() ? 14 : 16
 }
 
-/** Mirrors the local Ghostty terminal's built-in defaults (empty config) — bg #282C34, fg #FFFFFF, Tomorrow Night ANSI palette. */
+/** Transcribed from the local Ghostty config's `theme = Nord` (Ghostty.app themes/Nord). */
 export const terminalTheme = {
-  background: "#282C34",
-  foreground: "#FFFFFF",
-  cursor: "#FFFFFF",
-  cursorAccent: "#282C34",
-  selectionBackground: "#FFFFFF",
-  selectionForeground: "#282C34",
-  black: "#1D1F21",
-  red: "#CC6666",
-  green: "#B5BD68",
-  yellow: "#F0C674",
-  blue: "#81A2BE",
-  magenta: "#B294BB",
-  cyan: "#8ABEB7",
-  white: "#C5C8C6",
-  brightBlack: "#666666",
-  brightRed: "#D54E53",
-  brightGreen: "#B9CA4A",
-  brightYellow: "#E7C547",
-  brightBlue: "#7AA6DA",
-  brightMagenta: "#C397D8",
-  brightCyan: "#70C0B1",
-  brightWhite: "#EAEAEA",
+  background: "#2E3440",
+  foreground: "#D8DEE9",
+  cursor: "#ECEFF4",
+  cursorAccent: "#282828",
+  selectionBackground: "#ECEFF4",
+  selectionForeground: "#4C566A",
+  black: "#3B4252",
+  red: "#BF616A",
+  green: "#A3BE8C",
+  yellow: "#EBCB8B",
+  blue: "#81A1C1",
+  magenta: "#B48EAD",
+  cyan: "#88C0D0",
+  white: "#E5E9F0",
+  brightBlack: "#596377",
+  brightRed: "#BF616A",
+  brightGreen: "#A3BE8C",
+  brightYellow: "#EBCB8B",
+  brightBlue: "#81A1C1",
+  brightMagenta: "#B48EAD",
+  brightCyan: "#8FBCBB",
+  brightWhite: "#ECEFF4",
 } as const
 
-/** Ghostty built-in default face/size/cursor. */
-export const GHOSTTY_FONT_FAMILY = '"JetBrains Mono", ui-monospace, Menlo, monospace'
-export const GHOSTTY_FONT_SIZE_PX = 13
+/** Mirrors the local Ghostty config's font-family / font-size. */
+export const GHOSTTY_FONT_FAMILY = '"GeistMono", ui-monospace, Menlo, monospace'
+export const GHOSTTY_FONT_SIZE_PX = 16
 export const GHOSTTY_CURSOR_STYLE = "block" as const
 export const GHOSTTY_CURSOR_BLINK = true

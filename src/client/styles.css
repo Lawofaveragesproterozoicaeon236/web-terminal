@@ -11,6 +11,20 @@
   unicode-range: U+E000-EFFF, U+F000-F8FF, U+F0000-FFFFD, U+100000-10FFFD;
 }
 
+@font-face {
+  font-family: "GeistMono";
+  src: url("./fonts/GeistMono-Regular.woff2") format("woff2");
+  font-display: swap;
+}
+
+/* Hangul ranges mirror the local Ghostty config's font-codepoint-map entries. */
+@font-face {
+  font-family: "IBMPlexSansKR";
+  src: url("./fonts/IBMPlexSansKR-Regular.woff2") format("woff2");
+  font-display: swap;
+  unicode-range: U+1100-11FF, U+3000-303F, U+3131-318E, U+AC00-D7AF, U+FF00-FFEF;
+}
+
 /*
  * web-terminal token system. Transcribed from DESIGN.md sections 2-7.
  * Raw values are forbidden outside this token block (DESIGN.md preamble).
@@ -47,8 +61,8 @@
   --status-neutral: #80858d;
 
   /* DESIGN.md 2.2 - terminal surface tokens */
-  --term-bg: #282c34; /* matches terminalTheme.background (Ghostty default) */
-  --term-fg: #ffffff; /* matches terminalTheme.foreground */
+  --term-bg: #2e3440; /* matches terminalTheme.background (Ghostty Nord) */
+  --term-fg: #d8dee9; /* matches terminalTheme.foreground */
   --term-cursor: #5ab2ff;
   --term-scrollbar: rgba(255, 255, 255, 0.14);
 

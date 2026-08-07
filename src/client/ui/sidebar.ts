@@ -29,7 +29,7 @@ type SidebarActions = {
 
 export function createSidebar(actions: SidebarActions): Sidebar {
   const panelHost = el("div", { class: "stack", id: "sidebar-panel", tabindex: "0" })
-  let active: SidebarTab = "files"
+  let active: SidebarTab = "herdr"
   let overlay: Overlay | undefined
   let afterDrawerClose: (() => void) | undefined
   let dockedVisible = true
@@ -175,7 +175,7 @@ export function createSidebar(actions: SidebarActions): Sidebar {
     actions.onDrawerChange(false)
   }
 
-  select("files")
+  select("herdr")
   relayout()
 
   return {
