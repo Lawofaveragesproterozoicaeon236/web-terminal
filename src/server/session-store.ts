@@ -7,13 +7,7 @@ const BUFFER_CAPACITY_BYTES = 4 * 1024 * 1024
 const FLUSH_INTERVAL_MS = 8
 const FALLBACK_SHELLS = ["/bin/zsh", "/bin/bash", "/bin/sh"] as const
 
-/**
- * Default session command. fish blocks on terminal capability queries (DA/DCS)
- * that ghostty-web does not answer, producing a blank terminal. The default must
- * therefore never resolve to fish. Precedence: WT_SHELL override → the user's
- * $SHELL unless it is fish → first available of zsh/bash/sh.
- */
-export function defaultCommand(): readonly string[] {
+function shellCommand(): readonly string[] {
   const override = process.env["WT_SHELL"]
   if (override !== undefined && override !== "") return [override, "-l"]
   const loginShell = process.env["SHELL"]
@@ -24,6 +18,40 @@ export function defaultCommand(): readonly string[] {
     if (existsSync(candidate)) return [candidate, "-l"]
   }
   return ["/bin/sh", "-l"]
+}
+
+/**
+ * Default session command. Opening the app lands in the herdr workspace this
+ * machine already runs (the local equivalent of the `jw` alias, which moshes to
+ * this host and attaches), so the browser shows the same session as a native
+ * terminal instead of an unrelated shell.
+ *
+ * Escape hatches: WT_SHELL forces a plain shell, WT_HERDR_ATTACH=0 disables the
+ * attach. fish is never chosen — it blocks on terminal capability queries
+ * (DA/DCS) that ghostty-web does not answer, producing a blank terminal.
+ */
+export function defaultCommand(): readonly string[] {
+  const override = process.env["WT_SHELL"]
+  if (override !== undefined && override !== "") return [override, "-l"]
+  if (process.env["WT_HERDR_ATTACH"] === "0") return shellCommand()
+  return ["herdr"]
+}
+
+/**
+ * herdr refuses to start inside another herdr pane ("nested herdr is disabled").
+ * The web-terminal server itself usually runs in one, so its own HERDR_* markers
+ * must not reach the session or every terminal opens on that error.
+ */
+export function sessionEnv(): Record<string, string> {
+  const env: Record<string, string> = {}
+  for (const [key, value] of Object.entries(process.env)) {
+    if (value === undefined) continue
+    if (key.toUpperCase().startsWith("HERDR")) continue
+    env[key] = value
+  }
+  env["TERM"] = "xterm-256color"
+  env["COLORTERM"] = "truecolor"
+  return env
 }
 
 export type SessionInfo = {
@@ -66,7 +94,7 @@ export class TerminalSession {
       cols: this.#cols,
       rows: this.#rows,
       ...(options.cwd === undefined ? {} : { cwd: options.cwd }),
-      ...(options.env === undefined ? {} : { env: options.env }),
+      env: options.env ?? sessionEnv(),
     }
     this.#pty = spawnPty(ptyOptions, {
       onData: (chunk) => this.#enqueue(chunk),

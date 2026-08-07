@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, test } from "bun:test"
-import { defaultCommand, SessionStore, type TerminalSession } from "../src/server/session-store.ts"
+import {
+  defaultCommand,
+  SessionStore,
+  sessionEnv,
+  type TerminalSession,
+} from "../src/server/session-store.ts"
 
 const decoder = new TextDecoder()
 
@@ -134,6 +139,37 @@ describe("SessionStore", () => {
     const code = await waitForExit(session)
     expect(code).toBe(3)
     expect(session.info().alive).toBe(false)
+  })
+
+  test("default command attaches to herdr, and WT_SHELL still overrides it", () => {
+    const savedShell = process.env["WT_SHELL"]
+    const savedAttach = process.env["WT_HERDR_ATTACH"]
+    try {
+      delete process.env["WT_SHELL"]
+      delete process.env["WT_HERDR_ATTACH"]
+      expect(defaultCommand()[0]).toBe("herdr")
+      process.env["WT_HERDR_ATTACH"] = "0"
+      expect(defaultCommand()[0]).not.toBe("herdr")
+      delete process.env["WT_HERDR_ATTACH"]
+      process.env["WT_SHELL"] = "/custom/shell"
+      expect(defaultCommand()[0]).toBe("/custom/shell")
+    } finally {
+      if (savedShell === undefined) delete process.env["WT_SHELL"]
+      else process.env["WT_SHELL"] = savedShell
+      if (savedAttach === undefined) delete process.env["WT_HERDR_ATTACH"]
+      else process.env["WT_HERDR_ATTACH"] = savedAttach
+    }
+  })
+
+  test("a herdr-attached session does not inherit the outer herdr env", () => {
+    const saved = process.env["HERDR_PANE_ID"]
+    try {
+      process.env["HERDR_PANE_ID"] = "w9:p1"
+      expect(sessionEnv()["HERDR_PANE_ID"]).toBeUndefined()
+    } finally {
+      if (saved === undefined) delete process.env["HERDR_PANE_ID"]
+      else process.env["HERDR_PANE_ID"] = saved
+    }
   })
 
   test("resuming an exited session is refused so a reconnect cannot attach to a corpse", async () => {

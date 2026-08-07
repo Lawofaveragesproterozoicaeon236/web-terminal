@@ -1,6 +1,11 @@
-// Real-surface QA driver: E1 exit leaves a usable terminal, E2 reload after exit
-// starts a fresh shell instead of resuming a dead one (the "frozen after exit" bug).
-// Usage: node script/qa/exit-scenarios.mjs --base http://127.0.0.1:7821 --password qa-password-123
+// Real-surface QA driver: E0 the app opens attached to herdr, E1 exit leaves a
+// usable terminal, E2 reload after exit starts a fresh shell instead of resuming
+// a dead one (the "frozen after exit" bug).
+//
+// E0 runs against --base (herdr default). E1/E2 need a shell that `exit` can
+// actually kill, so they run against --shell-base, a server started with
+// WT_HERDR_ATTACH=0.
+// Usage: node script/qa/exit-scenarios.mjs --base http://127.0.0.1:7821 --shell-base http://127.0.0.1:7822 --password qa-password-123
 
 import { chromium } from "playwright"
 
@@ -10,6 +15,7 @@ const arg = (name, fallback) => {
 }
 
 const base = arg("base", "http://127.0.0.1:7821")
+const shellBase = arg("shell-base", "http://127.0.0.1:7822")
 const password = arg("password", "qa-password-123")
 
 const results = []
@@ -18,8 +24,8 @@ const record = (name, pass, detail) => {
   console.log(`${pass ? "PASS" : "FAIL"} ${name} — ${detail}`)
 }
 
-async function login(page) {
-  await page.goto(base)
+async function login(page, target = base) {
+  await page.goto(target)
   await page.fill("#password", password)
   await page.click("button[type=submit]")
   await page.waitForSelector(".terminal canvas", { timeout: 15000 })
@@ -55,10 +61,39 @@ async function waitForText(page, needle, timeout = 15000) {
 async function run() {
   const browser = await chromium.launch()
 
+  // ---- E0: opening the app lands in the herdr workspace (the `jw` view) ----
+  {
+    const page = await browser.newPage({ viewport: { width: 1400, height: 900 } })
+    await login(page)
+    let attached = true
+    try {
+      // herdr paints its workspace rail; a plain login shell never does.
+      await page.waitForFunction(
+        () => {
+          const buffer = globalThis.__wt.terminal.buffer.active
+          for (let y = 0; y < buffer.length; y++) {
+            if (buffer.getLine(y)?.translateToString(true).includes("spaces") === true) return true
+          }
+          return false
+        },
+        undefined,
+        { timeout: 20000 },
+      )
+    } catch {
+      attached = false
+    }
+    record(
+      "E0 app opens attached to herdr",
+      attached,
+      attached ? "herdr workspace rail rendered on open" : "opened a plain shell instead of herdr",
+    )
+    await page.close()
+  }
+
   // ---- E1: exit shows the notice and Enter starts a working shell ----
   {
     const page = await browser.newPage({ viewport: { width: 1280, height: 800 } })
-    await login(page)
+    await login(page, shellBase)
     await page.waitForTimeout(2000)
     await page.click(".terminal")
     await page.keyboard.type("exit")
@@ -98,7 +133,7 @@ async function run() {
   // ---- E2: reloading after an exit must not resume the dead session ----
   {
     const page = await browser.newPage({ viewport: { width: 1280, height: 800 } })
-    await login(page)
+    await login(page, shellBase)
     await page.waitForTimeout(2000)
     const deadId = await page.evaluate(() => globalThis.__wt.connection.sessionId)
     await page.click(".terminal")

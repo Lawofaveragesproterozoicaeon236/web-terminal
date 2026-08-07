@@ -25,7 +25,9 @@ export type PtyHandle = {
 export function spawnPty(options: PtyOptions, handlers: PtyHandlers): PtyHandle {
   const proc = Bun.spawn([...options.command], {
     ...(options.cwd === undefined ? {} : { cwd: options.cwd }),
-    env: { ...process.env, ...options.env, TERM: "xterm-256color" },
+    // A caller-supplied env is authoritative: callers strip variables (HERDR_*)
+    // that must not reach the child, so process.env cannot be layered back in.
+    env: { ...(options.env ?? process.env), TERM: "xterm-256color" },
     terminal: {
       cols: options.cols,
       rows: options.rows,
