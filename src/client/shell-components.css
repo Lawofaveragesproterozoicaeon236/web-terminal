@@ -168,6 +168,14 @@
 }
 
 /* ---------- Terminal region ---------- */
+/* Mobile selectable OS chrome (callout/magnifier) owns its menu, not us; the
+   custom long-press selection needs -webkit-callout and -webkit-tap-highlight off. */
+.terminal,
+.terminal canvas {
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
 .term-preedit {
   position: absolute;
   inset-block-start: 0;
